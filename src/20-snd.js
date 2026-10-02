@@ -28,7 +28,9 @@ const Snd = (() => {
     const o = a.createOscillator(), g = a.createGain();
     o.type = type || 'square';
     o.frequency.value = freq;
-    g.gain.setValueAtTime(vol || 0.06, t);
+    // 0 から一瞬で最大にすると立ち上がりで「プツッ」と鳴るので、5ms かけて上げる
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol || 0.06, t + 0.005);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(a.destination);
     o.start(t);
@@ -38,7 +40,8 @@ const Snd = (() => {
     unlock,
     // i: コマンド内の位置（0始まり）。打ち進むほど ド→レ→ミ… と上がる。
     // コマンドは最大20個なので、1オクターブ下のド(262Hz)から始めて20個目でも高すぎないようにする
-    hit(i)  { beep(note((i || 0) + HIT_FROM), 0.05); },
+    // 三角波にする（低い音の矩形波を 0.05 秒だけ鳴らすと「ブッ」という破裂音に聞こえた）
+    hit(i)  { beep(note((i || 0) + HIT_FROM), 0.08, 'triangle', 0.12); },
     // 最後の1打も打鍵音とまったく同じ鳴らし方で、音階の次の音にする（本人の希望。
     // 音色や長さを変えたり「ド・ミ・ソ」へ飛ばしたりすると、最後だけ浮いて聞こえた）
     clear(i) { this.hit(i); },
