@@ -88,7 +88,7 @@
   #result dt{color:var(--sub);letter-spacing:.03em}
   #result dd{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   #result dd.big{font-size:40px}
-  #retry{margin-top:8px;padding:16px 36px;font-size:24px;white-space:nowrap;font-weight:700;letter-spacing:.08em;
+  #retry{margin-top:8px;padding:16px 56px;font-size:28px;white-space:nowrap;font-weight:700;letter-spacing:.08em;
     color:var(--bg);background:var(--accent);border:0;border-radius:14px;touch-action:none}
   #retry.locked{opacity:.35}
   #result .hint{font-size:13px;color:var(--sub)}
@@ -457,7 +457,7 @@ function renderCombo(s, ev) {
 function renderBest(r) {
   const el = $('r-best');
   el.replaceChildren();
-  if (!r) return;
+  if (!r || r.best === 0) return;   // まだベストが無い（0点で終えた初回）ときは何も出さない
   if (r.isNew) {
     const n = document.createElement('span');
     n.className = 'rec';
@@ -466,7 +466,7 @@ function renderBest(r) {
     return;
   }
   el.appendChild(document.createTextNode('ベスト ' + r.best.toLocaleString()));
-  if (r.best > 0 && r.diff > 0) {
+  if (r.diff > 0) {
     el.appendChild(document.createElement('br'));
     el.appendChild(document.createTextNode('ベストまで あと ' + r.diff.toLocaleString()));
   }
@@ -524,7 +524,6 @@ function render(s, ev, info) {
   document.querySelectorAll('.modes button').forEach(b => {
     b.classList.toggle('on', Number(b.dataset.limit) === s.timeLimit);
   });
-  $('retry').textContent = 'もう一度（' + s.timeLimit / 1000 + '秒）';
   if (s.phase !== 'result') cancelAnimationFrame(countAnim);
   $('result').hidden = s.phase !== 'result';
   if (s.phase === 'result') {

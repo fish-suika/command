@@ -79,7 +79,7 @@ function renderCombo(s, ev) {
 function renderBest(r) {
   const el = $('r-best');
   el.replaceChildren();
-  if (!r) return;
+  if (!r || r.best === 0) return;   // まだベストが無い（0点で終えた初回）ときは何も出さない
   if (r.isNew) {
     const n = document.createElement('span');
     n.className = 'rec';
@@ -88,7 +88,7 @@ function renderBest(r) {
     return;
   }
   el.appendChild(document.createTextNode('ベスト ' + r.best.toLocaleString()));
-  if (r.best > 0 && r.diff > 0) {
+  if (r.diff > 0) {
     el.appendChild(document.createElement('br'));
     el.appendChild(document.createTextNode('ベストまで あと ' + r.diff.toLocaleString()));
   }
@@ -146,7 +146,6 @@ function render(s, ev, info) {
   document.querySelectorAll('.modes button').forEach(b => {
     b.classList.toggle('on', Number(b.dataset.limit) === s.timeLimit);
   });
-  $('retry').textContent = 'もう一度（' + s.timeLimit / 1000 + '秒）';
   if (s.phase !== 'result') cancelAnimationFrame(countAnim);
   $('result').hidden = s.phase !== 'result';
   if (s.phase === 'result') {
