@@ -234,6 +234,57 @@ test('judgeBest: score 0 かつ best 0 は更新ではない', () => {
   eq(r.isNew, false, 'isNew'); eq(r.best, 0, 'best'); eq(r.diff, 0, 'diff');
 });
 
+// ===== 制限時間モード =====
+test('既定の状態は TIME_LIMIT モード', () => {
+  const s = createState();
+  eq(s.timeLimit, CFG.TIME_LIMIT, 'timeLimit'); eq(s.timeLeft, CFG.TIME_LIMIT, 'timeLeft');
+});
+
+test('ready で setMode すると timeLimit と timeLeft が変わり、開始すると endAt に反映される', () => {
+  const s = createState(), L = CFG.MODES[2];
+  eq(setMode(s, L), true);
+  eq(s.timeLimit, L, 'timeLimit'); eq(s.timeLeft, L, 'timeLeft');
+  press(s, 'U', 1000, R0);
+  eq(s.endAt, 1000 + L, 'endAt');
+  eq(s.timeLimit, L, '開始後も保つ');
+});
+
+test('playing 中の setMode は false で何も変えない', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  eq(setMode(s, CFG.MODES[2]), false);
+  eq(s.timeLimit, CFG.TIME_LIMIT, 'timeLimit'); eq(s.endAt, CFG.TIME_LIMIT, 'endAt');
+});
+
+test('MODES にない値の setMode は false', () => {
+  const s = createState();
+  eq(setMode(s, 12345), false); eq(setMode(s, undefined), false);
+  eq(s.timeLimit, CFG.TIME_LIMIT); eq(s.timeLeft, CFG.TIME_LIMIT);
+});
+
+test('retry は直前に遊んだモードを保つ', () => {
+  const s = createState(), L = CFG.MODES[1];
+  setMode(s, L); press(s, 'U', 0, R0);
+  eq(tick(s, L), true);
+  const t = L + CFG.RESULT_LOCK;
+  eq(retry(s, t, R0), true);
+  eq(s.timeLimit, L, 'timeLimit'); eq(s.endAt, t + L, 'endAt'); eq(s.timeLeft, L, 'timeLeft');
+});
+
+test('result で setMode すると次の retry だけ変わり、表示中の結果は変わらない', () => {
+  const s = createState(), L = CFG.MODES[2];
+  press(s, 'U', 0, R0);
+  const T = { t: 0 };
+  clearOne(s, T);
+  tick(s, CFG.TIME_LIMIT);
+  const score = s.score, timeLeft = s.timeLeft;
+  eq(score > 0, true, '前提: 得点あり');
+  eq(setMode(s, L), true);
+  eq(s.phase, 'result'); eq(s.score, score, 'score'); eq(s.timeLeft, timeLeft, 'timeLeft');
+  const t = CFG.TIME_LIMIT + CFG.RESULT_LOCK;
+  eq(retry(s, t, R0), true);
+  eq(s.endAt, t + L, 'endAt'); eq(s.timeLimit, L);
+});
+
 // ===== 結果表示 =====
 (function () {
   const out = document.getElementById('out');

@@ -88,7 +88,7 @@
   #result dt{color:var(--sub);letter-spacing:.03em}
   #result dd{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   #result dd.big{font-size:40px}
-  #retry{margin-top:8px;padding:16px 56px;font-size:28px;font-weight:700;letter-spacing:.08em;
+  #retry{margin-top:8px;padding:16px 36px;font-size:24px;white-space:nowrap;font-weight:700;letter-spacing:.08em;
     color:var(--bg);background:var(--accent);border:0;border-radius:14px;touch-action:none}
   #retry.locked{opacity:.35}
   #result .hint{font-size:13px;color:var(--sub)}
@@ -97,6 +97,14 @@
     text-shadow:0 0 12px var(--accent);animation:recpop .5s ease-out}
   @keyframes recpop{0%{opacity:0;transform:scale(.5)}60%{transform:scale(1.25)}100%{opacity:1;transform:scale(1)}}
   #msg .best{display:block;margin-top:8px;font-size:14px;letter-spacing:.03em}
+  .modes{display:flex;gap:8px;justify-content:center}
+  .modes button{padding:8px 16px;font-size:16px;font-weight:700;color:var(--sub);background:#1d2130;
+    border:1px solid #2c3246;border-radius:10px;touch-action:none;font-family:inherit}
+  .modes button.on{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+  #modes-ready{margin-top:16px}
+  #modes-ready[hidden]{display:none}
+  #ready-sub{margin-top:8px;text-align:center;font-size:13px;color:var(--sub);line-height:1.6;min-height:1.6em}
+  #ready-sub .best{display:block;margin-top:4px;font-size:14px;letter-spacing:.03em}
 </style>
 </head>
 <body>
@@ -112,6 +120,8 @@
     <div id="combo-pop"></div>
     <div id="cmd-wrap"><div id="ring"></div><div id="cmd"></div></div>
     <div id="msg"></div>
+    <div class="modes" id="modes-ready"><button data-limit="30000">30秒</button><button data-limit="60000">60秒</button><button data-limit="90000">90秒</button></div>
+    <div id="ready-sub"></div>
   </div>
   <div id="pad">
     <button class="u" data-dir="U">↑</button>
@@ -131,6 +141,7 @@
     <dt>最大コンボ</dt><dd id="r-combo">0</dd>
     <dt>時間ボーナス</dt><dd id="r-bonus">+0秒</dd>
   </dl>
+  <div class="modes" id="modes-result"><button data-limit="30000">30秒</button><button data-limit="60000">60秒</button><button data-limit="90000">90秒</button></div>
   <button id="retry">もう一度</button>
   <div class="hint">Enter・Space キーでも</div>
 </div>
@@ -141,7 +152,8 @@
 
 // 遊びながら調整する数値はすべてここ
 const CFG = {
-  TIME_LIMIT: 30000,   // 制限時間 ms
+  TIME_LIMIT: 30000,   // 既定の制限時間 ms（モード選択の初期値）
+  MODES: [30000, 60000, 90000],  // 選べる制限時間 ms
   LEN_START: 2,        // 最初のコマンドの長さ
   LEN_STEP: 3,         // 何コマンドクリアごとに1個長くなるか
   LEN_MAX: 9,          // 長さの上限
@@ -192,10 +204,12 @@ function accuracy(s) {
   return total === 0 ? 100 : Math.floor(s.inputs * 100 / total);
 }
 
-function createState() {
+function createState(limit) {
+  limit = limit || CFG.TIME_LIMIT;
   return {
     phase: 'ready',          // 'ready' | 'playing' | 'result'
-    timeLeft: CFG.TIME_LIMIT,
+    timeLimit: limit,        // 選択中の制限時間 ms（リトライでも保つ）
+    timeLeft: limit,
     endAt: 0,
     resultAt: 0,
     score: 0,
@@ -218,9 +232,10 @@ function nextCommand(s, now, rand) {
 }
 
 function startGame(s, now, rand) {
-  Object.assign(s, createState());
+  const limit = s.timeLimit;   // モードは作り直しても保つ
+  Object.assign(s, createState(limit));
   s.phase = 'playing';
-  s.endAt = now + CFG.TIME_LIMIT;
+  s.endAt = now + limit;
   nextCommand(s, now, rand);
 }
 
@@ -286,6 +301,16 @@ function retry(s, now, rand) {
 function judgeBest(score, best) {
   const isNew = score > best;
   return { isNew, best: isNew ? score : best, diff: isNew ? 0 : best - score };
+}
+
+// 制限時間モードの切り替え。ready と result のときだけ。成功したら true
+// result では表示中の結果には触れず、次の retry で遊ぶ時間だけを変える
+function setMode(s, limit) {
+  if (s.phase !== 'ready' && s.phase !== 'result') return false;
+  if (!CFG.MODES.includes(limit)) return false;
+  s.timeLimit = limit;
+  if (s.phase === 'ready') s.timeLeft = limit;
+  return true;
 }
 // ===== 効果音（波形合成。ファイルなし） =====
 const Snd = (() => {
@@ -477,20 +502,29 @@ function render(s, ev, info) {
     }
     fitCommand();
     msg.textContent = '';
+    $('ready-sub').textContent = '';
   } else if (s.phase === 'ready') {
     cmd.replaceChildren();
     msg.replaceChildren('表示された矢印を順に入力', document.createElement('br'), '矢印キー／ボタンでスタート');
+    const sub = $('ready-sub');
+    sub.replaceChildren('1・2・3 キーでも切替');
     if (info.best > 0) {
       const b = document.createElement('span');
       b.className = 'best';
       b.textContent = 'ベスト ' + info.best.toLocaleString();
-      msg.appendChild(b);
+      sub.appendChild(b);
     }
   } else {
     cmd.replaceChildren();
     msg.textContent = '';
+    $('ready-sub').textContent = '';
   }
 
+  $('modes-ready').hidden = s.phase !== 'ready';
+  document.querySelectorAll('.modes button').forEach(b => {
+    b.classList.toggle('on', Number(b.dataset.limit) === s.timeLimit);
+  });
+  $('retry').textContent = 'もう一度（' + s.timeLimit / 1000 + '秒）';
   if (s.phase !== 'result') cancelAnimationFrame(countAnim);
   $('result').hidden = s.phase !== 'result';
   if (s.phase === 'result') {
@@ -511,11 +545,17 @@ const KEYMAP = {
   KeyW: 'U', KeyS: 'D', KeyA: 'L', KeyD: 'R',
 };
 
-function bindInput(onDir, onRetry) {
+function bindInput(onDir, onRetry, onMode) {
   window.addEventListener('keydown', e => {
     if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
       e.preventDefault();
       if (!e.repeat) onRetry();
+      return;
+    }
+    const m = /^(?:Digit|Numpad)([123])$/.exec(e.code);
+    if (m) {
+      e.preventDefault();
+      if (!e.repeat) onMode(CFG.MODES[m[1] - 1]);
       return;
     }
     const dir = KEYMAP[e.code];
@@ -529,26 +569,37 @@ function bindInput(onDir, onRetry) {
   document.querySelectorAll('#pad button').forEach(b => {
     b.addEventListener('pointerdown', e => { e.preventDefault(); onDir(b.dataset.dir); });
   });
+  document.querySelectorAll('.modes button').forEach(b => {
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); onMode(Number(b.dataset.limit)); });
+  });
   $('retry').addEventListener('pointerdown', e => { e.preventDefault(); onRetry(); });
   window.addEventListener('contextmenu', e => e.preventDefault()); // 長押しメニューを出さない
 }
 // ===== 保存（localStorage。使えない環境でも遊べるよう、すべて try/catch） =====
+// 自己ベストは制限時間モードごと。キーは command.best.<秒>（例 command.best.30）
 const Store = {
-  KEY: 'command.best',
+  OLD_KEY: 'command.best',   // モード導入前のキー（30秒モードで記録したもの）
+  key(limit) { return 'command.best.' + limit / 1000; },
+  read(key) {
+    const n = Number(localStorage.getItem(key));
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  },
   // 保存済みの自己ベスト。無い・壊れている・読めないときは 0
-  loadBest() {
+  loadBest(limit) {
     try {
-      const n = Number(localStorage.getItem(this.KEY));
-      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+      if (localStorage.getItem(this.key(limit)) === null && limit === 30000) {
+        return this.read(this.OLD_KEY);   // 旧キーの値を30秒モードのベストとして引き継ぐ
+      }
+      return this.read(this.key(limit));
     } catch (e) { return 0; }
   },
-  saveBest(n) {
-    try { localStorage.setItem(this.KEY, String(n)); } catch (e) { /* 保存できなくても続行 */ }
+  saveBest(limit, n) {
+    try { localStorage.setItem(this.key(limit), String(n)); } catch (e) { /* 保存できなくても続行 */ }
   },
 };
 // ===== 起動とループ =====
 const S = createState();
-let best = Store.loadBest();   // 自己ベスト（保存できない環境では 0 から）
+let best = Store.loadBest(S.timeLimit);   // 選択中モードの自己ベスト（保存できない環境では 0 から）
 let lastJudge = null;          // 直近の結果の judgeBest()
 const info = () => ({ best, r: lastJudge });
 
@@ -566,7 +617,7 @@ function tickSound() {
 function onEnd() {
   const r = judgeBest(S.score, best);
   lastJudge = r;
-  if (r.isNew) { best = r.best; Store.saveBest(best); Snd.record(); }
+  if (r.isNew) { best = r.best; Store.saveBest(S.timeLimit, best); Snd.record(); }
   else Snd.end();
 }
 
@@ -599,7 +650,15 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-bindInput(onDir, onRetry);
+// モード切替。ready / result のときだけ通る。ベストは選んだモードのものに読み直す
+function onMode(limit) {
+  Snd.unlock();
+  if (!setMode(S, limit)) return;
+  best = Store.loadBest(S.timeLimit);
+  render(S, null, info());
+}
+
+bindInput(onDir, onRetry, onMode);
 window.addEventListener('resize', () => { if (S.phase === 'playing') fitCommand(); });
 render(S, null, info());
 requestAnimationFrame(loop);

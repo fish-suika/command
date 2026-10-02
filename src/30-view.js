@@ -124,20 +124,29 @@ function render(s, ev, info) {
     }
     fitCommand();
     msg.textContent = '';
+    $('ready-sub').textContent = '';
   } else if (s.phase === 'ready') {
     cmd.replaceChildren();
     msg.replaceChildren('表示された矢印を順に入力', document.createElement('br'), '矢印キー／ボタンでスタート');
+    const sub = $('ready-sub');
+    sub.replaceChildren('1・2・3 キーでも切替');
     if (info.best > 0) {
       const b = document.createElement('span');
       b.className = 'best';
       b.textContent = 'ベスト ' + info.best.toLocaleString();
-      msg.appendChild(b);
+      sub.appendChild(b);
     }
   } else {
     cmd.replaceChildren();
     msg.textContent = '';
+    $('ready-sub').textContent = '';
   }
 
+  $('modes-ready').hidden = s.phase !== 'ready';
+  document.querySelectorAll('.modes button').forEach(b => {
+    b.classList.toggle('on', Number(b.dataset.limit) === s.timeLimit);
+  });
+  $('retry').textContent = 'もう一度（' + s.timeLimit / 1000 + '秒）';
   if (s.phase !== 'result') cancelAnimationFrame(countAnim);
   $('result').hidden = s.phase !== 'result';
   if (s.phase === 'result') {

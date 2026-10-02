@@ -3,7 +3,8 @@
 
 // 遊びながら調整する数値はすべてここ
 const CFG = {
-  TIME_LIMIT: 30000,   // 制限時間 ms
+  TIME_LIMIT: 30000,   // 既定の制限時間 ms（モード選択の初期値）
+  MODES: [30000, 60000, 90000],  // 選べる制限時間 ms
   LEN_START: 2,        // 最初のコマンドの長さ
   LEN_STEP: 3,         // 何コマンドクリアごとに1個長くなるか
   LEN_MAX: 9,          // 長さの上限
@@ -54,10 +55,12 @@ function accuracy(s) {
   return total === 0 ? 100 : Math.floor(s.inputs * 100 / total);
 }
 
-function createState() {
+function createState(limit) {
+  limit = limit || CFG.TIME_LIMIT;
   return {
     phase: 'ready',          // 'ready' | 'playing' | 'result'
-    timeLeft: CFG.TIME_LIMIT,
+    timeLimit: limit,        // 選択中の制限時間 ms（リトライでも保つ）
+    timeLeft: limit,
     endAt: 0,
     resultAt: 0,
     score: 0,
@@ -80,9 +83,10 @@ function nextCommand(s, now, rand) {
 }
 
 function startGame(s, now, rand) {
-  Object.assign(s, createState());
+  const limit = s.timeLimit;   // モードは作り直しても保つ
+  Object.assign(s, createState(limit));
   s.phase = 'playing';
-  s.endAt = now + CFG.TIME_LIMIT;
+  s.endAt = now + limit;
   nextCommand(s, now, rand);
 }
 
@@ -148,4 +152,14 @@ function retry(s, now, rand) {
 function judgeBest(score, best) {
   const isNew = score > best;
   return { isNew, best: isNew ? score : best, diff: isNew ? 0 : best - score };
+}
+
+// 制限時間モードの切り替え。ready と result のときだけ。成功したら true
+// result では表示中の結果には触れず、次の retry で遊ぶ時間だけを変える
+function setMode(s, limit) {
+  if (s.phase !== 'ready' && s.phase !== 'result') return false;
+  if (!CFG.MODES.includes(limit)) return false;
+  s.timeLimit = limit;
+  if (s.phase === 'ready') s.timeLeft = limit;
+  return true;
 }

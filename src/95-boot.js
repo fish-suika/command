@@ -1,6 +1,6 @@
 // ===== 起動とループ =====
 const S = createState();
-let best = Store.loadBest();   // 自己ベスト（保存できない環境では 0 から）
+let best = Store.loadBest(S.timeLimit);   // 選択中モードの自己ベスト（保存できない環境では 0 から）
 let lastJudge = null;          // 直近の結果の judgeBest()
 const info = () => ({ best, r: lastJudge });
 
@@ -18,7 +18,7 @@ function tickSound() {
 function onEnd() {
   const r = judgeBest(S.score, best);
   lastJudge = r;
-  if (r.isNew) { best = r.best; Store.saveBest(best); Snd.record(); }
+  if (r.isNew) { best = r.best; Store.saveBest(S.timeLimit, best); Snd.record(); }
   else Snd.end();
 }
 
@@ -51,7 +51,15 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-bindInput(onDir, onRetry);
+// モード切替。ready / result のときだけ通る。ベストは選んだモードのものに読み直す
+function onMode(limit) {
+  Snd.unlock();
+  if (!setMode(S, limit)) return;
+  best = Store.loadBest(S.timeLimit);
+  render(S, null, info());
+}
+
+bindInput(onDir, onRetry, onMode);
 window.addEventListener('resize', () => { if (S.phase === 'playing') fitCommand(); });
 render(S, null, info());
 requestAnimationFrame(loop);

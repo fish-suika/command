@@ -88,7 +88,7 @@
   #result dt{color:var(--sub);letter-spacing:.03em}
   #result dd{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   #result dd.big{font-size:40px}
-  #retry{margin-top:8px;padding:16px 56px;font-size:28px;font-weight:700;letter-spacing:.08em;
+  #retry{margin-top:8px;padding:16px 36px;font-size:24px;white-space:nowrap;font-weight:700;letter-spacing:.08em;
     color:var(--bg);background:var(--accent);border:0;border-radius:14px;touch-action:none}
   #retry.locked{opacity:.35}
   #result .hint{font-size:13px;color:var(--sub)}
@@ -97,6 +97,14 @@
     text-shadow:0 0 12px var(--accent);animation:recpop .5s ease-out}
   @keyframes recpop{0%{opacity:0;transform:scale(.5)}60%{transform:scale(1.25)}100%{opacity:1;transform:scale(1)}}
   #msg .best{display:block;margin-top:8px;font-size:14px;letter-spacing:.03em}
+  .modes{display:flex;gap:8px;justify-content:center}
+  .modes button{padding:8px 16px;font-size:16px;font-weight:700;color:var(--sub);background:#1d2130;
+    border:1px solid #2c3246;border-radius:10px;touch-action:none;font-family:inherit}
+  .modes button.on{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+  #modes-ready{margin-top:16px}
+  #modes-ready[hidden]{display:none}
+  #ready-sub{margin-top:8px;text-align:center;font-size:13px;color:var(--sub);line-height:1.6;min-height:1.6em}
+  #ready-sub .best{display:block;margin-top:4px;font-size:14px;letter-spacing:.03em}
 </style>
 </head>
 <body>
@@ -112,6 +120,8 @@
     <div id="combo-pop"></div>
     <div id="cmd-wrap"><div id="ring"></div><div id="cmd"></div></div>
     <div id="msg"></div>
+    <div class="modes" id="modes-ready"><button data-limit="30000">30秒</button><button data-limit="60000">60秒</button><button data-limit="90000">90秒</button></div>
+    <div id="ready-sub"></div>
   </div>
   <div id="pad">
     <button class="u" data-dir="U">↑</button>
@@ -131,6 +141,7 @@
     <dt>最大コンボ</dt><dd id="r-combo">0</dd>
     <dt>時間ボーナス</dt><dd id="r-bonus">+0秒</dd>
   </dl>
+  <div class="modes" id="modes-result"><button data-limit="30000">30秒</button><button data-limit="60000">60秒</button><button data-limit="90000">90秒</button></div>
   <button id="retry">もう一度</button>
   <div class="hint">Enter・Space キーでも</div>
 </div>

@@ -5,11 +5,17 @@ const KEYMAP = {
   KeyW: 'U', KeyS: 'D', KeyA: 'L', KeyD: 'R',
 };
 
-function bindInput(onDir, onRetry) {
+function bindInput(onDir, onRetry, onMode) {
   window.addEventListener('keydown', e => {
     if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
       e.preventDefault();
       if (!e.repeat) onRetry();
+      return;
+    }
+    const m = /^(?:Digit|Numpad)([123])$/.exec(e.code);
+    if (m) {
+      e.preventDefault();
+      if (!e.repeat) onMode(CFG.MODES[m[1] - 1]);
       return;
     }
     const dir = KEYMAP[e.code];
@@ -22,6 +28,9 @@ function bindInput(onDir, onRetry) {
   // pointerdown で即反応（click の遅延を避ける）
   document.querySelectorAll('#pad button').forEach(b => {
     b.addEventListener('pointerdown', e => { e.preventDefault(); onDir(b.dataset.dir); });
+  });
+  document.querySelectorAll('.modes button').forEach(b => {
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); onMode(Number(b.dataset.limit)); });
   });
   $('retry').addEventListener('pointerdown', e => { e.preventDefault(); onRetry(); });
   window.addEventListener('contextmenu', e => e.preventDefault()); // 長押しメニューを出さない
