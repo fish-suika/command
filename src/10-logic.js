@@ -5,7 +5,7 @@
 const CFG = {
   TIME_LIMIT: 30000,   // 制限時間 ms
   LEN_START: 2,        // 最初のコマンドの長さ
-  LEN_STEP: 5,         // 何コマンドクリアごとに1個長くなるか
+  LEN_STEP: 3,         // 何コマンドクリアごとに1個長くなるか
   LEN_MAX: 9,          // 長さの上限
   PTS_PER_KEY: 100,    // 矢印1個あたりの基本点
   GAUGE_MAX: 10,       // 何コマンド連続クリアで満タンか

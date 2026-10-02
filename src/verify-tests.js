@@ -14,11 +14,13 @@ const R0 = seqRand([0]); // 常に 'U' を出す
 
 // ===== テスト =====
 test('commandLength: クリア数に応じて伸び、上限で止まる', () => {
-  eq(commandLength(0), 2, '0');
-  eq(commandLength(4), 2, '4');
-  eq(commandLength(5), 3, '5');
-  eq(commandLength(35), 9, '35');
-  eq(commandLength(100), 9, '100');
+  const L = CFG.LEN_START, N = CFG.LEN_STEP, M = CFG.LEN_MAX;
+  eq(commandLength(0), L, '0');
+  eq(commandLength(N - 1), L, 'STEP-1');
+  eq(commandLength(N), L + 1, 'STEP');
+  eq(commandLength(N * (M - L) - 1), M - 1, '上限の直前');
+  eq(commandLength(N * (M - L)), M, '上限');
+  eq(commandLength(1000), M, '上限で止まる');
 });
 
 test('makeCommand: 乱数を固定すると決まった並びになる', () => {
@@ -79,11 +81,11 @@ test('ミスでスコアが MISS_PENALTY 減り、コンボが切れる', () => 
   eq(s.gauge, 0);
 });
 
-test('5回クリアするとコマンドが3個になる', () => {
+test('LEN_STEP 回クリアするとコマンドが1個伸びる', () => {
   const s = createState(); press(s, 'U', 0, R0);
   let t = 0;
-  for (let c = 0; c < 5; c++) { while (true) { t += 10; const ev = press(s, 'U', t, R0); if (ev === 'clear' || ev === 'boost') break; } }
-  eq(s.cleared, 5); eq(s.command.length, 3);
+  for (let c = 0; c < CFG.LEN_STEP; c++) { while (true) { t += 10; const ev = press(s, 'U', t, R0); if (ev === 'clear' || ev === 'boost') break; } }
+  eq(s.cleared, CFG.LEN_STEP); eq(s.command.length, CFG.LEN_START + 1);
 });
 
 // 1コマンド分（長さに関わらず 'U' を押し続ける）を入力して最後の戻り値を返す
