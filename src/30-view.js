@@ -8,11 +8,15 @@ function renderTime(s) {
   t.classList.toggle('low', s.phase === 'playing' && s.timeLeft <= 10000);
 }
 
-// 9個並んでもスマホの縦画面で1行に収まるよう文字サイズを決める
-function fitCommand(len) {
-  const w = $('stage').clientWidth;
-  const size = Math.max(28, Math.min(72, Math.floor(w / (len * 1.35))));
-  $('cmd').style.setProperty('--cmd-size', size + 'px');
+// 最大サイズで実際に並べて幅を測り、はみ出す分だけ縮める
+// （矢印の字幅はフォントで違うので、長さからの計算だと小さくなりすぎた）
+const CMD_MAX = 120;
+function fitCommand() {
+  const cmd = $('cmd');
+  const w = $('stage').clientWidth * 0.92; // 次の1個の scale(1.15) ぶんの余白
+  cmd.style.setProperty('--cmd-size', CMD_MAX + 'px');
+  const need = cmd.scrollWidth;
+  if (need > w) cmd.style.setProperty('--cmd-size', Math.floor(CMD_MAX * w / need) + 'px');
 }
 
 function restartAnim(el, cls) {
@@ -40,7 +44,7 @@ function render(s, ev) {
     if (ev === 'hit') cmd.children[s.pos - 1].classList.add('hit');
     if (ev === 'miss') cmd.children[s.pos].classList.add('miss');
     if (ev === 'clear' || ev === 'start') restartAnim(cmd, 'pop');
-    fitCommand(s.command.length);
+    fitCommand();
     msg.textContent = '';
   } else if (s.phase === 'ready') {
     cmd.replaceChildren();

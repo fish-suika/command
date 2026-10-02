@@ -25,6 +25,6 @@ function loop() {
 }
 
 bindInput(onDir, onRetry);
-window.addEventListener('resize', () => { if (S.phase === 'playing') fitCommand(S.command.length); });
+window.addEventListener('resize', () => { if (S.phase === 'playing') fitCommand(); });
 render(S, null);
 requestAnimationFrame(loop);
