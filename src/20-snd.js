@@ -28,14 +28,15 @@ const Snd = (() => {
     unlock,
     // i: コマンド内の位置（0始まり）。打ち進むほど半音ずつ上がる
     hit(i)  { beep(880 * 2 ** ((i || 0) / 12), 0.05); },
-    // tier: 倍率の段（0〜4）。上がるほど高く、和音が厚くなる
+    // tier: 倍率の段（0〜4）。段ごとに ド→ミ→ソ→ド→ミ と1音ずつ足す分散和音。
+    // 根音の高さは固定する（以前は根音ごと上げて矩形波を同時に重ねたため、
+    // 高い段で 2〜5kHz の濁った塊になっていた）
     clear(tier) {
-      const t = tier || 0, base = 1320 * 2 ** (t / 6);
-      beep(base, 0.08);
-      if (t >= 1) beep(base * 1.25, 0.1, 'square', 0.04);
-      if (t >= 2) beep(base * 1.5, 0.1, 'square', 0.04);
-      if (t >= 3) beep(base * 2, 0.12, 'triangle', 0.06);
-      if (t >= 4) beep(base * 2.5, 0.14, 'triangle', 0.06);
+      const n = 1 + Math.min(tier || 0, 4);
+      const notes = [1047, 1319, 1568, 2093, 2637].slice(0, n);
+      const vol = 0.09 / Math.sqrt(n);   // 音を重ねても全体の音量はほぼ一定
+      beep(notes[0], 0.08, 'square', 0.06); // 根音は打鍵音と同じ音色で歯切れよく
+      notes.slice(1).forEach((f, i) => beep(f, 0.12 + i * 0.02, 'triangle', vol, (i + 1) * 0.025));
     },
     // 節目表示に合わせた明るい3音（クリア音のあとに続く）
     milestone() {
