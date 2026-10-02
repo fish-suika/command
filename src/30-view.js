@@ -90,7 +90,7 @@ function renderBest(r) {
   el.appendChild(document.createTextNode('BEST ' + r.best.toLocaleString()));
   if (r.best > 0 && r.diff > 0) {
     el.appendChild(document.createElement('br'));
-    el.appendChild(document.createTextNode('自己ベストまで あと ' + r.diff.toLocaleString()));
+    el.appendChild(document.createTextNode(r.diff.toLocaleString() + ' PTS TO BEST'));
   }
 }
 
@@ -126,7 +126,7 @@ function render(s, ev, info) {
     msg.textContent = '';
   } else if (s.phase === 'ready') {
     cmd.replaceChildren();
-    msg.textContent = '表示された矢印を順に入力 ／ 矢印キーかボタンでスタート';
+    msg.textContent = 'ENTER THE ARROWS IN ORDER  ·  PRESS ANY ARROW TO START';
     if (info.best > 0) {
       const b = document.createElement('span');
       b.className = 'best';
