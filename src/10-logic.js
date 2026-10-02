@@ -8,7 +8,8 @@ const CFG = {
   LEN_STEP: 5,         // 何コマンドクリアごとに1個長くなるか
   LEN_MAX: 9,          // 長さの上限
   PTS_PER_KEY: 100,    // 矢印1個あたりの基本点
-  SPEED_TARGET: 300,   // 1個あたりの目標時間 ms（これより速いとボーナス）
+  GAUGE_MAX: 10,       // 何コマンド連続クリアで満タンか
+  GAUGE_BONUS: 3000,   // 満タンで増える時間 ms
   MISS_PENALTY: 50,    // ミス1回の減点
   RESULT_LOCK: 600,    // 結果表示から RETRY を受け付けるまで ms
 };
@@ -26,11 +27,9 @@ function makeCommand(len, rand) {
   return cmd;
 }
 
-// 基本点 + 目標より速く打てた分のボーナス（長いコマンドほど大きい）
-function clearScore(len, elapsedMs) {
-  const base = CFG.PTS_PER_KEY * len;
-  const bonus = Math.round(Math.max(0, CFG.SPEED_TARGET * len - elapsedMs) * len / 10);
-  return base + bonus;
+// クリア得点 = 矢印1個あたりの基本点 × 長さ
+function clearScore(len) {
+  return CFG.PTS_PER_KEY * len;
 }
 
 function accuracy(s) {
@@ -52,14 +51,14 @@ function createState() {
     misses: 0,
     command: [],
     pos: 0,
-    commandStartedAt: 0,
+    gauge: 0,
+    boosts: 0,               // 時間が増えた回数
   };
 }
 
 function nextCommand(s, now, rand) {
   s.command = makeCommand(commandLength(s.cleared), rand);
   s.pos = 0;
-  s.commandStartedAt = now;
 }
 
 function startGame(s, now, rand) {
@@ -81,7 +80,7 @@ function tick(s, now) {
   return true;
 }
 
-// 方向入力。戻り値: 'start' | 'hit' | 'clear' | 'miss' | 'end' | null
+// 方向入力。戻り値: 'start' | 'hit' | 'clear' | 'boost' | 'miss' | 'end' | null
 function press(s, dir, now, rand) {
   if (s.phase === 'ready') { startGame(s, now, rand); return 'start'; }
   if (s.phase !== 'playing') return null;
@@ -91,17 +90,27 @@ function press(s, dir, now, rand) {
     s.pos++;
     s.inputs++;
     if (s.pos < s.command.length) return 'hit';
-    s.score += clearScore(s.command.length, now - s.commandStartedAt);
+    s.score += clearScore(s.command.length);
     s.cleared++;
     s.combo++;
     s.maxCombo = Math.max(s.maxCombo, s.combo);
+    s.gauge++;
+    let ev = 'clear';
+    if (s.gauge >= CFG.GAUGE_MAX) {
+      s.gauge = 0;
+      s.endAt += CFG.GAUGE_BONUS;
+      s.timeLeft = s.endAt - now;
+      s.boosts++;
+      ev = 'boost';
+    }
     nextCommand(s, now, rand);   // 待ち時間ゼロで次へ
-    return 'clear';
+    return ev;
   }
 
   // ミス: 位置はそのまま、続けられる
   s.misses++;
   s.combo = 0;
+  s.gauge = 0;
   s.score = Math.max(0, s.score - CFG.MISS_PENALTY);
   return 'miss';
 }

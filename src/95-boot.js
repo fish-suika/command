@@ -6,6 +6,7 @@ function onDir(dir) {
   const ev = press(S, dir, performance.now());
   if (ev === 'hit') Snd.hit();
   else if (ev === 'clear') Snd.clear();
+  else if (ev === 'boost') Snd.boost();
   else if (ev === 'miss') Snd.miss();
   else if (ev === 'end') Snd.end();
   if (ev) render(S, ev);

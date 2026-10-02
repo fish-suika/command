@@ -17,6 +17,14 @@
   .stat .k{font-size:12px;letter-spacing:.2em;color:var(--sub)}
   .stat .v{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
   #time.low{color:var(--warn)}
+  .stat.timebox{position:relative}
+  #time.boost{animation:boost .4s ease-out}
+  @keyframes boost{0%{color:var(--ok);transform:scale(1.35)}100%{color:inherit;transform:scale(1)}}
+  #time-plus{position:absolute;left:calc(50% + 38px);top:55%;font-size:16px;font-weight:700;color:var(--ok);opacity:0;pointer-events:none;white-space:nowrap}
+  #time-plus.go{animation:plus .6s ease-out}
+  @keyframes plus{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-18px)}}
+  #gauge{height:6px;margin-top:8px;border-radius:3px;background:#1d2130;overflow:hidden}
+  #gauge-fill{height:100%;width:0;border-radius:3px;background:var(--ok);transition:width .1s}
 
   #stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
   #cmd{display:flex;gap:.2em;font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
@@ -57,9 +65,10 @@
 <div id="app">
   <div id="hud">
     <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0</span></div>
-    <div class="stat"><span class="k">TIME</span><span class="v" id="time">60.0</span></div>
+    <div class="stat timebox"><span class="k">TIME</span><span class="v" id="time">60.0</span><span id="time-plus">+3s</span></div>
     <div class="stat"><span class="k">COMBO</span><span class="v" id="combo">0</span></div>
   </div>
+  <div id="gauge"><div id="gauge-fill"></div></div>
   <div id="stage">
     <div id="cmd"></div>
     <div id="msg"></div>
@@ -79,6 +88,7 @@
     <dt>INPUTS</dt><dd id="r-inputs">0</dd>
     <dt>MISS</dt><dd id="r-miss">0</dd>
     <dt>MAX COMBO</dt><dd id="r-combo">0</dd>
+    <dt>TIME BONUS</dt><dd id="r-bonus">+0s</dd>
   </dl>
   <button id="retry">RETRY</button>
   <div class="hint">Enter / Space</div>
@@ -95,7 +105,8 @@ const CFG = {
   LEN_STEP: 5,         // 何コマンドクリアごとに1個長くなるか
   LEN_MAX: 9,          // 長さの上限
   PTS_PER_KEY: 100,    // 矢印1個あたりの基本点
-  SPEED_TARGET: 300,   // 1個あたりの目標時間 ms（これより速いとボーナス）
+  GAUGE_MAX: 10,       // 何コマンド連続クリアで満タンか
+  GAUGE_BONUS: 3000,   // 満タンで増える時間 ms
   MISS_PENALTY: 50,    // ミス1回の減点
   RESULT_LOCK: 600,    // 結果表示から RETRY を受け付けるまで ms
 };
@@ -113,11 +124,9 @@ function makeCommand(len, rand) {
   return cmd;
 }
 
-// 基本点 + 目標より速く打てた分のボーナス（長いコマンドほど大きい）
-function clearScore(len, elapsedMs) {
-  const base = CFG.PTS_PER_KEY * len;
-  const bonus = Math.round(Math.max(0, CFG.SPEED_TARGET * len - elapsedMs) * len / 10);
-  return base + bonus;
+// クリア得点 = 矢印1個あたりの基本点 × 長さ
+function clearScore(len) {
+  return CFG.PTS_PER_KEY * len;
 }
 
 function accuracy(s) {
@@ -139,14 +148,14 @@ function createState() {
     misses: 0,
     command: [],
     pos: 0,
-    commandStartedAt: 0,
+    gauge: 0,
+    boosts: 0,               // 時間が増えた回数
   };
 }
 
 function nextCommand(s, now, rand) {
   s.command = makeCommand(commandLength(s.cleared), rand);
   s.pos = 0;
-  s.commandStartedAt = now;
 }
 
 function startGame(s, now, rand) {
@@ -168,7 +177,7 @@ function tick(s, now) {
   return true;
 }
 
-// 方向入力。戻り値: 'start' | 'hit' | 'clear' | 'miss' | 'end' | null
+// 方向入力。戻り値: 'start' | 'hit' | 'clear' | 'boost' | 'miss' | 'end' | null
 function press(s, dir, now, rand) {
   if (s.phase === 'ready') { startGame(s, now, rand); return 'start'; }
   if (s.phase !== 'playing') return null;
@@ -178,17 +187,27 @@ function press(s, dir, now, rand) {
     s.pos++;
     s.inputs++;
     if (s.pos < s.command.length) return 'hit';
-    s.score += clearScore(s.command.length, now - s.commandStartedAt);
+    s.score += clearScore(s.command.length);
     s.cleared++;
     s.combo++;
     s.maxCombo = Math.max(s.maxCombo, s.combo);
+    s.gauge++;
+    let ev = 'clear';
+    if (s.gauge >= CFG.GAUGE_MAX) {
+      s.gauge = 0;
+      s.endAt += CFG.GAUGE_BONUS;
+      s.timeLeft = s.endAt - now;
+      s.boosts++;
+      ev = 'boost';
+    }
     nextCommand(s, now, rand);   // 待ち時間ゼロで次へ
-    return 'clear';
+    return ev;
   }
 
   // ミス: 位置はそのまま、続けられる
   s.misses++;
   s.combo = 0;
+  s.gauge = 0;
   s.score = Math.max(0, s.score - CFG.MISS_PENALTY);
   return 'miss';
 }
@@ -232,6 +251,7 @@ const Snd = (() => {
     unlock,
     hit()   { beep(880, 0.05); },
     clear() { beep(1320, 0.08); },
+    boost() { beep(1320, 0.07, 'triangle', 0.1); beep(1760, 0.12, 'triangle', 0.1, 0.07); },
     miss()  { beep(140, 0.15, 'sawtooth', 0.08); },
     end()   { beep(660, 0.12, 'triangle', 0.12); beep(880, 0.12, 'triangle', 0.12, 0.12); beep(1100, 0.25, 'triangle', 0.12, 0.24); },
   };
@@ -268,6 +288,7 @@ function render(s, ev) {
   $('score').textContent = s.score.toLocaleString();
   $('combo').textContent = s.combo;
   renderTime(s);
+  $('gauge-fill').style.width = (s.gauge / CFG.GAUGE_MAX * 100) + '%';
 
   const cmd = $('cmd');
   const msg = $('msg');
@@ -281,7 +302,12 @@ function render(s, ev) {
     }));
     if (ev === 'hit') cmd.children[s.pos - 1].classList.add('hit');
     if (ev === 'miss') cmd.children[s.pos].classList.add('miss');
-    if (ev === 'clear' || ev === 'start') restartAnim(cmd, 'pop');
+    if (ev === 'clear' || ev === 'boost' || ev === 'start') restartAnim(cmd, 'pop');
+    if (ev === 'boost') {
+      restartAnim($('time'), 'boost');
+      $('time-plus').textContent = '+' + CFG.GAUGE_BONUS / 1000 + 's';
+      restartAnim($('time-plus'), 'go');
+    }
     fitCommand();
     msg.textContent = '';
   } else if (s.phase === 'ready') {
@@ -299,6 +325,7 @@ function render(s, ev) {
     $('r-inputs').textContent = s.inputs;
     $('r-miss').textContent = s.misses;
     $('r-combo').textContent = s.maxCombo;
+    $('r-bonus').textContent = '+' + (s.boosts * CFG.GAUGE_BONUS / 1000) + 's';
   }
 }
 // ===== 入力（キーボードとタッチを onDir / onRetry に集約） =====
@@ -337,6 +364,7 @@ function onDir(dir) {
   const ev = press(S, dir, performance.now());
   if (ev === 'hit') Snd.hit();
   else if (ev === 'clear') Snd.clear();
+  else if (ev === 'boost') Snd.boost();
   else if (ev === 'miss') Snd.miss();
   else if (ev === 'end') Snd.end();
   if (ev) render(S, ev);

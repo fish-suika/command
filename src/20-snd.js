@@ -28,6 +28,7 @@ const Snd = (() => {
     unlock,
     hit()   { beep(880, 0.05); },
     clear() { beep(1320, 0.08); },
+    boost() { beep(1320, 0.07, 'triangle', 0.1); beep(1760, 0.12, 'triangle', 0.1, 0.07); },
     miss()  { beep(140, 0.15, 'sawtooth', 0.08); },
     end()   { beep(660, 0.12, 'triangle', 0.12); beep(880, 0.12, 'triangle', 0.12, 0.12); beep(1100, 0.25, 'triangle', 0.12, 0.24); },
   };

@@ -17,6 +17,14 @@
   .stat .k{font-size:12px;letter-spacing:.2em;color:var(--sub)}
   .stat .v{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
   #time.low{color:var(--warn)}
+  .stat.timebox{position:relative}
+  #time.boost{animation:boost .4s ease-out}
+  @keyframes boost{0%{color:var(--ok);transform:scale(1.35)}100%{color:inherit;transform:scale(1)}}
+  #time-plus{position:absolute;left:calc(50% + 38px);top:55%;font-size:16px;font-weight:700;color:var(--ok);opacity:0;pointer-events:none;white-space:nowrap}
+  #time-plus.go{animation:plus .6s ease-out}
+  @keyframes plus{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-18px)}}
+  #gauge{height:6px;margin-top:8px;border-radius:3px;background:#1d2130;overflow:hidden}
+  #gauge-fill{height:100%;width:0;border-radius:3px;background:var(--ok);transition:width .1s}
 
   #stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
   #cmd{display:flex;gap:.2em;font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
@@ -57,9 +65,10 @@
 <div id="app">
   <div id="hud">
     <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0</span></div>
-    <div class="stat"><span class="k">TIME</span><span class="v" id="time">60.0</span></div>
+    <div class="stat timebox"><span class="k">TIME</span><span class="v" id="time">60.0</span><span id="time-plus">+3s</span></div>
     <div class="stat"><span class="k">COMBO</span><span class="v" id="combo">0</span></div>
   </div>
+  <div id="gauge"><div id="gauge-fill"></div></div>
   <div id="stage">
     <div id="cmd"></div>
     <div id="msg"></div>
@@ -79,6 +88,7 @@
     <dt>INPUTS</dt><dd id="r-inputs">0</dd>
     <dt>MISS</dt><dd id="r-miss">0</dd>
     <dt>MAX COMBO</dt><dd id="r-combo">0</dd>
+    <dt>TIME BONUS</dt><dd id="r-bonus">+0s</dd>
   </dl>
   <button id="retry">RETRY</button>
   <div class="hint">Enter / Space</div>

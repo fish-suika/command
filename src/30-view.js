@@ -30,6 +30,7 @@ function render(s, ev) {
   $('score').textContent = s.score.toLocaleString();
   $('combo').textContent = s.combo;
   renderTime(s);
+  $('gauge-fill').style.width = (s.gauge / CFG.GAUGE_MAX * 100) + '%';
 
   const cmd = $('cmd');
   const msg = $('msg');
@@ -43,7 +44,12 @@ function render(s, ev) {
     }));
     if (ev === 'hit') cmd.children[s.pos - 1].classList.add('hit');
     if (ev === 'miss') cmd.children[s.pos].classList.add('miss');
-    if (ev === 'clear' || ev === 'start') restartAnim(cmd, 'pop');
+    if (ev === 'clear' || ev === 'boost' || ev === 'start') restartAnim(cmd, 'pop');
+    if (ev === 'boost') {
+      restartAnim($('time'), 'boost');
+      $('time-plus').textContent = '+' + CFG.GAUGE_BONUS / 1000 + 's';
+      restartAnim($('time-plus'), 'go');
+    }
     fitCommand();
     msg.textContent = '';
   } else if (s.phase === 'ready') {
@@ -61,5 +67,6 @@ function render(s, ev) {
     $('r-inputs').textContent = s.inputs;
     $('r-miss').textContent = s.misses;
     $('r-combo').textContent = s.maxCombo;
+    $('r-bonus').textContent = '+' + (s.boosts * CFG.GAUGE_BONUS / 1000) + 's';
   }
 }

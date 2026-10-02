@@ -26,11 +26,8 @@ test('makeCommand: 乱数を固定すると決まった並びになる', () => {
   eq(makeCommand(3, seqRand([0.99])), ['R', 'R', 'R']);
 });
 
-test('clearScore: 基本点＋速さボーナス', () => {
-  eq(clearScore(2, 0), 320, '最速');
-  eq(clearScore(2, 600), 200, 'ちょうど目標時間');
-  eq(clearScore(2, 1000), 200, '目標より遅い');
-  eq(clearScore(3, 450), 435, '途中');
+test('clearScore: 矢印1個あたりの基本点×長さ', () => {
+  eq(clearScore(2), 200); eq(clearScore(9), 900);
 });
 
 test('accuracy: 0除算を含む', () => {
@@ -48,7 +45,6 @@ test('ready で方向を押すと開始し、その入力は数えない', () =>
   eq(s.command, ['U', 'U']);
   eq(s.pos, 0); eq(s.inputs, 0); eq(s.misses, 0);
   eq(s.endAt, 1000 + CFG.TIME_LIMIT);
-  eq(s.commandStartedAt, 1000);
 });
 
 test('正解キーで pos と inputs が進む', () => {
@@ -69,9 +65,8 @@ test('最後まで入力するとクリアし、同じ処理で次のコマン�
   press(s, 'U', 100, R0);
   eq(press(s, 'U', 200, R0), 'clear');
   eq(s.cleared, 1); eq(s.combo, 1); eq(s.maxCombo, 1);
-  eq(s.score, clearScore(2, 200));
+  eq(s.score, 200); eq(s.gauge, 1);
   eq(s.command, ['U', 'U']); eq(s.pos, 0);
-  eq(s.commandStartedAt, 200);
 });
 
 test('ミスでスコアが MISS_PENALTY 減り、コンボが切れる', () => {
@@ -81,13 +76,50 @@ test('ミスでスコアが MISS_PENALTY 減り、コンボが切れる', () => 
   eq(press(s, 'L', 300, R0), 'miss');
   eq(s.score, before - CFG.MISS_PENALTY);
   eq(s.combo, 0); eq(s.maxCombo, 1);
+  eq(s.gauge, 0);
 });
 
 test('5回クリアするとコマンドが3個になる', () => {
   const s = createState(); press(s, 'U', 0, R0);
   let t = 0;
-  for (let c = 0; c < 5; c++) { while (true) { t += 10; if (press(s, 'U', t, R0) === 'clear') break; } }
+  for (let c = 0; c < 5; c++) { while (true) { t += 10; const ev = press(s, 'U', t, R0); if (ev === 'clear' || ev === 'boost') break; } }
   eq(s.cleared, 5); eq(s.command.length, 3);
+});
+
+// 1コマンド分（長さに関わらず 'U' を押し続ける）を入力して最後の戻り値を返す
+function clearOne(s, tRef) {
+  while (true) { tRef.t += 10; const ev = press(s, 'U', tRef.t, R0); if (ev !== 'hit') return ev; }
+}
+
+test('10回連続クリアで時間が GAUGE_BONUS 増え、ゲージが空になる', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  const T = { t: 0 };
+  for (let i = 0; i < 9; i++) eq(clearOne(s, T), 'clear', String(i));
+  eq(s.gauge, 9); eq(s.endAt, CFG.TIME_LIMIT); eq(s.boosts, 0);
+  eq(clearOne(s, T), 'boost');
+  eq(s.gauge, 0); eq(s.boosts, 1); eq(s.endAt, CFG.TIME_LIMIT + CFG.GAUGE_BONUS);
+});
+
+test('ミスするとゲージが0に戻り、満タンまでやり直し', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  const T = { t: 0 };
+  for (let i = 0; i < 5; i++) clearOne(s, T);
+  eq(s.gauge, 5);
+  eq(press(s, 'D', T.t + 10, R0), 'miss'); T.t += 10;
+  eq(s.gauge, 0);
+  for (let i = 0; i < 9; i++) eq(clearOne(s, T), 'clear', String(i));
+  eq(s.boosts, 0);
+  eq(clearOne(s, T), 'boost');
+  eq(s.boosts, 1);
+});
+
+test('延長した分だけ時間切れが遅れる', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  const T = { t: 0 };
+  for (let i = 0; i < 10; i++) clearOne(s, T);
+  eq(s.boosts, 1);
+  eq(tick(s, CFG.TIME_LIMIT), false); eq(s.phase, 'playing');
+  eq(tick(s, CFG.TIME_LIMIT + CFG.GAUGE_BONUS), true);
 });
 
 test('時間切れ後の入力は数えずに result へ移る', () => {
@@ -115,6 +147,7 @@ test('RETRY は結果表示から RESULT_LOCK 経つまで効かない', () => {
   const t = CFG.TIME_LIMIT + CFG.RESULT_LOCK;
   eq(retry(s, t, R0), true);
   eq(s.phase, 'playing'); eq(s.misses, 0); eq(s.score, 0);
+  eq(s.gauge, 0); eq(s.boosts, 0);
   eq(s.endAt, t + CFG.TIME_LIMIT); eq(s.command.length, 2);
 });
 
