@@ -63,6 +63,7 @@ function createState() {
     score: 0,
     combo: 0,
     maxCombo: 0,
+    maxMult: 1,              // 到達した最大倍率
     cleared: 0,
     inputs: 0,
     misses: 0,
@@ -107,10 +108,11 @@ function press(s, dir, now, rand) {
     s.pos++;
     s.inputs++;
     if (s.pos < s.command.length) return 'hit';
-    s.score += clearScore(s.command.length);
     s.cleared++;
     s.combo++;
     s.maxCombo = Math.max(s.maxCombo, s.combo);
+    s.maxMult = Math.max(s.maxMult, comboMult(s.combo));
+    s.score += Math.round(clearScore(s.command.length) * comboMult(s.combo));
     s.gauge++;
     let ev = 'clear';
     if (s.gauge >= CFG.GAUGE_MAX) {
