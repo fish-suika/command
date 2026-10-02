@@ -11,8 +11,14 @@ function renderTime(s) {
 // 最大サイズで実際に並べて幅を測り、はみ出す分だけ縮める
 // （矢印の字幅はフォントで違うので、長さからの計算だと小さくなりすぎた）
 const CMD_MAX = 120;
+const CMD_COLS = 10;   // 1段に並べる数。11個以上は2段にする（1行に詰めると小さくて読めない）
 function fitCommand() {
   const cmd = $('cmd');
+  const n = cmd.children.length;
+  cmd.style.setProperty('--cols', Math.min(n, CMD_COLS) || 1);
+  // 1段なら字幅のまま詰めて大きく見せる。2段なら上下の列がそろうよう、
+  // 一番幅の広い ← → （約0.87文字ぶん）に合わせた均等なマスにする
+  cmd.style.setProperty('--colw', n > CMD_COLS ? '.87em' : 'auto');
   const w = $('stage').clientWidth * 0.92; // 次の1個の scale(1.15) ぶんの余白
   cmd.style.setProperty('--cmd-size', CMD_MAX + 'px');
   const need = cmd.scrollWidth;

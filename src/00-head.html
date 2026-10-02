@@ -60,7 +60,9 @@
     opacity:0;pointer-events:none;z-index:0}
   #ring.go{animation:ring .3s ease-out}
   @keyframes ring{from{opacity:.8;transform:scale(1)}to{opacity:0;transform:scale(1.4)}}
-  #cmd{position:relative;z-index:1;display:flex;gap:.2em;font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
+  /* 1段に CMD_COLS 個まで。それ以上は次の段へ（--cols は fitCommand が決める） */
+  #cmd{position:relative;z-index:1;display:grid;grid-template-columns:repeat(var(--cols,10),var(--colw,auto));justify-items:center;gap:.15em .2em;
+    font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
   #cmd span{display:inline-block}
   #cmd span.done{color:var(--dim)}
   #cmd span.next{color:var(--accent);transform:scale(1.15)}

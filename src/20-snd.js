@@ -15,9 +15,11 @@ const Snd = (() => {
   // 以前は半音ずつ上げていて、半音階の上昇は緊迫・不安の響きになっていた。
   // d: ド(523Hz)から数えた音階の段（0=ド 1=レ 2=ミ … 7=1つ上のド）
   const MAJOR = [0, 2, 4, 5, 7, 9, 11];
-  const note = d => 523.25 * 2 ** ((12 * Math.floor(d / 7) + MAJOR[d % 7]) / 12);
+  const mod7 = d => ((d % 7) + 7) % 7;   // 負の段（ドより下）でも 0〜6 に
+  const note = d => 523.25 * 2 ** ((12 * Math.floor(d / 7) + MAJOR[mod7(d)]) / 12);
   // d より上で最初の「ド・ミ・ソ」。締めの音をここに置くと落ち着いて終わる
-  const chordAbove = d => { let x = d + 1; while (![0, 2, 4].includes(x % 7)) x++; return x; };
+  const chordAbove = d => { let x = d + 1; while (![0, 2, 4].includes(mod7(x))) x++; return x; };
+  const HIT_FROM = -7;   // 打鍵音の最初の音（−7 = ド(523Hz)の1オクターブ下）
 
   function beep(freq, dur, type, vol, when) {
     const a = unlock();
@@ -34,14 +36,15 @@ const Snd = (() => {
   }
   return {
     unlock,
-    // i: コマンド内の位置（0始まり）。打ち進むほど ド→レ→ミ… と上がる
-    hit(i)  { beep(note(i || 0), 0.05); },
+    // i: コマンド内の位置（0始まり）。打ち進むほど ド→レ→ミ… と上がる。
+    // コマンドは最大20個なので、1オクターブ下のド(262Hz)から始めて20個目でも高すぎないようにする
+    hit(i)  { beep(note((i || 0) + HIT_FROM), 0.05); },
     // 最後の1打も打鍵音とまったく同じ鳴らし方で、音階の次の音にする（本人の希望。
     // 音色や長さを変えたり「ド・ミ・ソ」へ飛ばしたりすると、最後だけ浮いて聞こえた）
     clear(i) { this.hit(i); },
     // 節目の3音。最後の1打が鳴り終わってから、その上の「ド・ミ・ソ」を3つ続ける
     milestone(i) {
-      const b = chordAbove(i || 0), c = chordAbove(b), d = chordAbove(c);
+      const b = chordAbove((i || 0) + HIT_FROM), c = chordAbove(b), d = chordAbove(c);
       beep(note(b), 0.07, 'triangle', 0.09, 0.10);
       beep(note(c), 0.07, 'triangle', 0.09, 0.17);
       beep(note(d), 0.14, 'triangle', 0.09, 0.24);

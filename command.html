@@ -60,7 +60,9 @@
     opacity:0;pointer-events:none;z-index:0}
   #ring.go{animation:ring .3s ease-out}
   @keyframes ring{from{opacity:.8;transform:scale(1)}to{opacity:0;transform:scale(1.4)}}
-  #cmd{position:relative;z-index:1;display:flex;gap:.2em;font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
+  /* 1段に CMD_COLS 個まで。それ以上は次の段へ（--cols は fitCommand が決める） */
+  #cmd{position:relative;z-index:1;display:grid;grid-template-columns:repeat(var(--cols,10),var(--colw,auto));justify-items:center;gap:.15em .2em;
+    font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
   #cmd span{display:inline-block}
   #cmd span.done{color:var(--dim)}
   #cmd span.next{color:var(--accent);transform:scale(1.15)}
@@ -156,7 +158,7 @@ const CFG = {
   MODES: [30000, 60000, 90000],  // 選べる制限時間 ms
   LEN_START: 2,        // 最初のコマンドの長さ
   LEN_STEP: 3,         // 何コマンドクリアごとに1個長くなるか
-  LEN_MAX: 9,          // 長さの上限
+  LEN_MAX: 20,         // 長さの上限（11個以上は2段で表示）
   PTS_PER_KEY: 100,    // 矢印1個あたりの基本点
   GAUGE_MAX: 10,       // 何コマンド連続クリアで満タンか
   GAUGE_BONUS: 3000,   // 満タンで増える時間 ms
@@ -329,9 +331,11 @@ const Snd = (() => {
   // 以前は半音ずつ上げていて、半音階の上昇は緊迫・不安の響きになっていた。
   // d: ド(523Hz)から数えた音階の段（0=ド 1=レ 2=ミ … 7=1つ上のド）
   const MAJOR = [0, 2, 4, 5, 7, 9, 11];
-  const note = d => 523.25 * 2 ** ((12 * Math.floor(d / 7) + MAJOR[d % 7]) / 12);
+  const mod7 = d => ((d % 7) + 7) % 7;   // 負の段（ドより下）でも 0〜6 に
+  const note = d => 523.25 * 2 ** ((12 * Math.floor(d / 7) + MAJOR[mod7(d)]) / 12);
   // d より上で最初の「ド・ミ・ソ」。締めの音をここに置くと落ち着いて終わる
-  const chordAbove = d => { let x = d + 1; while (![0, 2, 4].includes(x % 7)) x++; return x; };
+  const chordAbove = d => { let x = d + 1; while (![0, 2, 4].includes(mod7(x))) x++; return x; };
+  const HIT_FROM = -7;   // 打鍵音の最初の音（−7 = ド(523Hz)の1オクターブ下）
 
   function beep(freq, dur, type, vol, when) {
     const a = unlock();
@@ -348,14 +352,15 @@ const Snd = (() => {
   }
   return {
     unlock,
-    // i: コマンド内の位置（0始まり）。打ち進むほど ド→レ→ミ… と上がる
-    hit(i)  { beep(note(i || 0), 0.05); },
+    // i: コマンド内の位置（0始まり）。打ち進むほど ド→レ→ミ… と上がる。
+    // コマンドは最大20個なので、1オクターブ下のド(262Hz)から始めて20個目でも高すぎないようにする
+    hit(i)  { beep(note((i || 0) + HIT_FROM), 0.05); },
     // 最後の1打も打鍵音とまったく同じ鳴らし方で、音階の次の音にする（本人の希望。
     // 音色や長さを変えたり「ド・ミ・ソ」へ飛ばしたりすると、最後だけ浮いて聞こえた）
     clear(i) { this.hit(i); },
     // 節目の3音。最後の1打が鳴り終わってから、その上の「ド・ミ・ソ」を3つ続ける
     milestone(i) {
-      const b = chordAbove(i || 0), c = chordAbove(b), d = chordAbove(c);
+      const b = chordAbove((i || 0) + HIT_FROM), c = chordAbove(b), d = chordAbove(c);
       beep(note(b), 0.07, 'triangle', 0.09, 0.10);
       beep(note(c), 0.07, 'triangle', 0.09, 0.17);
       beep(note(d), 0.14, 'triangle', 0.09, 0.24);
@@ -389,8 +394,14 @@ function renderTime(s) {
 // 最大サイズで実際に並べて幅を測り、はみ出す分だけ縮める
 // （矢印の字幅はフォントで違うので、長さからの計算だと小さくなりすぎた）
 const CMD_MAX = 120;
+const CMD_COLS = 10;   // 1段に並べる数。11個以上は2段にする（1行に詰めると小さくて読めない）
 function fitCommand() {
   const cmd = $('cmd');
+  const n = cmd.children.length;
+  cmd.style.setProperty('--cols', Math.min(n, CMD_COLS) || 1);
+  // 1段なら字幅のまま詰めて大きく見せる。2段なら上下の列がそろうよう、
+  // 一番幅の広い ← → （約0.87文字ぶん）に合わせた均等なマスにする
+  cmd.style.setProperty('--colw', n > CMD_COLS ? '.87em' : 'auto');
   const w = $('stage').clientWidth * 0.92; // 次の1個の scale(1.15) ぶんの余白
   cmd.style.setProperty('--cmd-size', CMD_MAX + 'px');
   const need = cmd.scrollWidth;
