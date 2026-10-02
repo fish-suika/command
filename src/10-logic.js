@@ -9,7 +9,7 @@ const CFG = {
   LEN_STEP: 3,         // 何コマンドクリアごとに1個長くなるか
   LEN_MAX: 20,         // 長さの上限（11個以上は2段で表示）
   PTS_PER_KEY: 100,    // 矢印1個あたりの基本点
-  GAUGE_MAX: 10,       // 何コマンド連続クリアで満タンか
+  GAUGE_MAX: 30,       // ミスなしで矢印を何個打てば満タンか（クリアしたコマンドの長さぶん溜まる）
   GAUGE_BONUS: 3000,   // 満タンで増える時間 ms
   MISS_PENALTY: 50,    // ミス1回の減点
   RESULT_LOCK: 600,    // 結果表示から RETRY を受け付けるまで ms
@@ -117,10 +117,11 @@ function press(s, dir, now, rand) {
     s.maxCombo = Math.max(s.maxCombo, s.combo);
     s.maxMult = Math.max(s.maxMult, comboMult(s.combo));
     s.score += Math.round(clearScore(s.command.length) * comboMult(s.combo));
-    s.gauge++;
+    // 長いコマンドほど多く溜まる（1コマンド1目盛りだと、長くなるほど満タンが遠のいた）
+    s.gauge += s.command.length;
     let ev = 'clear';
     if (s.gauge >= CFG.GAUGE_MAX) {
-      s.gauge = 0;
+      s.gauge -= CFG.GAUGE_MAX;   // あふれたぶんは次へ持ち越す
       s.endAt += CFG.GAUGE_BONUS;
       s.timeLeft = s.endAt - now;
       s.boosts++;

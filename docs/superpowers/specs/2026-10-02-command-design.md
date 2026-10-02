@@ -54,7 +54,7 @@ state = {
   misses,
   command,         // 例: ['U','R','D']
   pos,             // 次に押す位置
-  gauge,           // 連続クリア数（0〜GAUGE_MAX-1。ミスで0）
+  gauge,           // ミスなしでクリアした矢印の数（0〜GAUGE_MAX-1。ミスで0）
   boosts           // 時間が増えた回数
 }
 ```
@@ -78,7 +78,7 @@ state = {
 | `LEN_STEP` | 3 | 何コマンドクリアごとに1個長くなるか |
 | `LEN_MAX` | 20 | 長さの上限（2026-10-02 に 9 から変更。11個以上は1段10個の2段表示） |
 | `PTS_PER_KEY` | 100 | 矢印1個あたりの基本点 |
-| `GAUGE_MAX` | 10 | 何コマンド連続クリアで満タンか |
+| `GAUGE_MAX` | 30 | ミスなしで矢印を何個打てば満タンか（2026-10-02 に「10コマンド」から変更） |
 | `GAUGE_BONUS` | 3000 ms | 満タンで増える時間 |
 | `MISS_PENALTY` | 50 | ミス1回の減点 |
 
@@ -88,7 +88,7 @@ state = {
 - **クリア時**: 
   - 得点 = `PTS_PER_KEY × 長さ`（速さによる加点はない）
   - `score += 得点`、`cleared += 1`、`combo += 1`、`maxCombo` を更新
-  - **ゲージ**: `gauge += 1`。`GAUGE_MAX` に達したら `gauge = 0`、終了時刻を `GAUGE_BONUS` ぶん延ばし（残り時間 +3秒）、`boosts += 1`
+  - **ゲージ**: `gauge += コマンドの長さ`。`GAUGE_MAX` に達したら `gauge -= GAUGE_MAX`（あふれたぶんは持ち越す）、終了時刻を `GAUGE_BONUS` ぶん延ばし（残り時間 +3秒）、`boosts += 1`
   - **同じ処理の中で** 次のコマンドを生成して表示する（待ち時間ゼロ）
 - **ミスキー**: `misses += 1`、`combo = 0`、`gauge = 0`、`score = max(0, score − MISS_PENALTY)`。**`pos` はそのまま**で続行
 - **ACCURACY** = `inputs / (inputs + misses)`（両方0なら 100%）。小数点以下切り捨ての%表示

@@ -67,7 +67,7 @@ test('最後まで入力するとクリアし、同じ処理で次のコマン�
   press(s, 'U', 100, R0);
   eq(press(s, 'U', 200, R0), 'clear');
   eq(s.cleared, 1); eq(s.combo, 1); eq(s.maxCombo, 1);
-  eq(s.score, 200); eq(s.gauge, 1);
+  eq(s.score, 200); eq(s.gauge, CFG.LEN_START, 'ゲージはコマンドの長さぶん');
   eq(s.command, ['U', 'U']); eq(s.pos, 0);
 });
 
@@ -93,32 +93,51 @@ function clearOne(s, tRef) {
   while (true) { tRef.t += 10; const ev = press(s, 'U', tRef.t, R0); if (ev !== 'hit') return ev; }
 }
 
-test('10回連続クリアで時間が GAUGE_BONUS 増え、ゲージが空になる', () => {
+// ゲージが満タンになるまでクリアし続ける。満タン前は 'clear' でゲージ＝打った矢印の合計、
+// 満タンの1回は 'boost' であふれたぶんが残ることを確かめる。戻り値は満タンまでに打った矢印の数
+function clearUntilBoost(s, T) {
+  let sum = s.gauge;
+  for (let guard = 0; guard < 100; guard++) {
+    const len = s.command.length, ev = clearOne(s, T);
+    sum += len;
+    if (sum >= CFG.GAUGE_MAX) { eq(ev, 'boost', '満タンの回'); eq(s.gauge, sum - CFG.GAUGE_MAX, '持ち越し'); return sum; }
+    eq(ev, 'clear', '満タン前'); eq(s.gauge, sum, '途中のゲージ');
+  }
+  throw new Error('満タンにならない');
+}
+
+test('矢印を GAUGE_MAX 個ぶんクリアすると時間が GAUGE_BONUS 増え、あふれたぶんは持ち越す', () => {
   const s = createState(); press(s, 'U', 0, R0);
   const T = { t: 0 };
-  for (let i = 0; i < 9; i++) eq(clearOne(s, T), 'clear', String(i));
-  eq(s.gauge, 9); eq(s.endAt, CFG.TIME_LIMIT); eq(s.boosts, 0);
-  eq(clearOne(s, T), 'boost');
-  eq(s.gauge, 0); eq(s.boosts, 1); eq(s.endAt, CFG.TIME_LIMIT + CFG.GAUGE_BONUS);
+  clearUntilBoost(s, T);
+  eq(s.boosts, 1); eq(s.endAt, CFG.TIME_LIMIT + CFG.GAUGE_BONUS);
+});
+
+test('長いコマンドほどゲージが多く溜まる', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  s.cleared = 1000; nextCommand(s, 0, R0);   // 上限の長さ
+  const T = { t: 0 }, L = s.command.length;
+  eq(L, CFG.LEN_MAX);
+  const ev = clearOne(s, T);
+  if (L >= CFG.GAUGE_MAX) { eq(ev, 'boost'); eq(s.gauge, L - CFG.GAUGE_MAX); }
+  else { eq(ev, 'clear'); eq(s.gauge, L); }
 });
 
 test('ミスするとゲージが0に戻り、満タンまでやり直し', () => {
   const s = createState(); press(s, 'U', 0, R0);
   const T = { t: 0 };
-  for (let i = 0; i < 5; i++) clearOne(s, T);
-  eq(s.gauge, 5);
+  clearOne(s, T);
+  eq(s.gauge > 0, true);
   eq(press(s, 'D', T.t + 10, R0), 'miss'); T.t += 10;
   eq(s.gauge, 0);
-  for (let i = 0; i < 9; i++) eq(clearOne(s, T), 'clear', String(i));
-  eq(s.boosts, 0);
-  eq(clearOne(s, T), 'boost');
+  clearUntilBoost(s, T);
   eq(s.boosts, 1);
 });
 
 test('延長した分だけ時間切れが遅れる', () => {
   const s = createState(); press(s, 'U', 0, R0);
   const T = { t: 0 };
-  for (let i = 0; i < 10; i++) clearOne(s, T);
+  clearUntilBoost(s, T);
   eq(s.boosts, 1);
   eq(tick(s, CFG.TIME_LIMIT), false); eq(s.phase, 'playing');
   eq(tick(s, CFG.TIME_LIMIT + CFG.GAUGE_BONUS), true);
