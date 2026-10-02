@@ -301,11 +301,30 @@ const Snd = (() => {
   }
   return {
     unlock,
-    hit()   { beep(880, 0.05); },
-    clear() { beep(1320, 0.08); },
+    // i: コマンド内の位置（0始まり）。打ち進むほど半音ずつ上がる
+    hit(i)  { beep(880 * 2 ** ((i || 0) / 12), 0.05); },
+    // tier: 倍率の段（0〜4）。上がるほど高く、和音が厚くなる
+    clear(tier) {
+      const t = tier || 0, base = 1320 * 2 ** (t / 6);
+      beep(base, 0.08);
+      if (t >= 1) beep(base * 1.25, 0.1, 'square', 0.04);
+      if (t >= 2) beep(base * 1.5, 0.1, 'square', 0.04);
+      if (t >= 3) beep(base * 2, 0.12, 'triangle', 0.06);
+      if (t >= 4) beep(base * 2.5, 0.14, 'triangle', 0.06);
+    },
+    // 節目表示に合わせた明るい3音（クリア音のあとに続く）
+    milestone() {
+      beep(1047, 0.08, 'triangle', 0.09, 0.06);
+      beep(1319, 0.08, 'triangle', 0.09, 0.12);
+      beep(1568, 0.16, 'triangle', 0.09, 0.18);
+    },
+    tick()  { beep(1800, 0.03, 'square', 0.04); },
     boost() { beep(1320, 0.07, 'triangle', 0.1); beep(1760, 0.12, 'triangle', 0.1, 0.07); },
     miss()  { beep(140, 0.15, 'sawtooth', 0.08); },
-    end()   { beep(660, 0.12, 'triangle', 0.12); beep(880, 0.12, 'triangle', 0.12, 0.12); beep(1100, 0.25, 'triangle', 0.12, 0.24); },
+    end()   {
+      beep(660, 0.12, 'triangle', 0.12); beep(880, 0.12, 'triangle', 0.12, 0.12);
+      beep(1100, 0.15, 'triangle', 0.12, 0.24); beep(1320, 0.4, 'triangle', 0.12, 0.38);
+    },
   };
 })();
 // ===== 描画 =====
@@ -464,11 +483,25 @@ function bindInput(onDir, onRetry) {
 // ===== 起動とループ =====
 const S = createState();
 
+// 残り5〜1秒の各秒の切り替わりで tick を鳴らす。
+// 時間延長で秒数が増えたときは基準だけ更新し、鳴らさない（二重に鳴らさない）
+let lastSec = Infinity;
+function tickSound() {
+  if (S.phase !== 'playing') { lastSec = Infinity; return; }
+  const sec = Math.ceil(S.timeLeft / 1000);
+  if (sec < lastSec && sec >= 1 && sec <= 5) Snd.tick();
+  lastSec = sec;
+}
+
 function onDir(dir) {
   Snd.unlock();
   const ev = press(S, dir, performance.now());
-  if (ev === 'hit') Snd.hit();
-  else if (ev === 'clear') Snd.clear();
+  if (ev === 'start') lastSec = Infinity;
+  else if (ev === 'hit') Snd.hit(S.pos - 1);
+  else if (ev === 'clear') {
+    Snd.clear(comboTier(S.combo));
+    if (isComboMilestone(S.combo)) Snd.milestone();   // boost と同時のときは boost だけ
+  }
   else if (ev === 'boost') Snd.boost();
   else if (ev === 'miss') Snd.miss();
   else if (ev === 'end') Snd.end();
@@ -477,13 +510,13 @@ function onDir(dir) {
 
 function onRetry() {
   Snd.unlock();
-  if (retry(S, performance.now())) render(S, 'start');
+  if (retry(S, performance.now())) { lastSec = Infinity; render(S, 'start'); }
 }
 
 function loop() {
   const now = performance.now();
   if (tick(S, now)) { Snd.end(); render(S, 'end'); }
-  else if (S.phase === 'playing') renderTime(S);
+  else if (S.phase === 'playing') { renderTime(S); tickSound(); }
   if (S.phase === 'result') $('retry').classList.toggle('locked', !canRetry(S, now));
   requestAnimationFrame(loop);
 }
