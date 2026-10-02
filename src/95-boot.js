@@ -18,8 +18,8 @@ function onDir(dir) {
   if (ev === 'start') lastSec = Infinity;
   else if (ev === 'hit') Snd.hit(S.pos - 1);
   else if (ev === 'clear') {
-    Snd.clear(comboTier(S.combo), len - 1);
-    if (isComboMilestone(S.combo)) Snd.milestone();   // boost と同時のときは boost だけ
+    Snd.clear(len - 1);
+    if (isComboMilestone(S.combo)) Snd.milestone(len - 1);   // boost と同時のときは boost だけ
   }
   else if (ev === 'boost') Snd.boost();
   else if (ev === 'miss') Snd.miss();

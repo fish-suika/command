@@ -32,22 +32,15 @@ const Snd = (() => {
     unlock,
     // i: コマンド内の位置（0始まり）。打ち進むほど半音ずつ上がる
     hit(i)  { beep(step(i), 0.05); },
-    // 最後の1打。i はその位置なので、直前の打鍵音より半音上から鳴る。
-    // tier: 倍率の段（0〜4）。段ごとに 長3度→5度→オクターブ→その上の3度 と1音ずつ足す分散和音
-    // （以前は根音ごと上げて矩形波を同時に重ねたため、高い段で 2〜5kHz の濁った塊になっていた）
-    clear(tier, i) {
-      const n = 1 + Math.min(tier || 0, 4);
+    // 最後の1打。i はその位置なので、直前の打鍵音より半音上で鳴る。
+    // 1音だけにする（和音にすると重なって聞こえた。倍率の段は画面の色で伝える）
+    clear(i) { beep(step(i), 0.09, 'square', 0.07); },
+    // 節目の3音。クリア音（0.09秒）が鳴り終わってから、その音の上へ 長3度→5度→オクターブ と続ける
+    milestone(i) {
       const root = step(i);
-      const notes = [1, 1.26, 1.5, 2, 2.52].slice(0, n).map(r => root * r);
-      const vol = 0.09 / Math.sqrt(n);   // 音を重ねても全体の音量はほぼ一定
-      beep(notes[0], 0.08, 'square', 0.06); // 根音は打鍵音と同じ音色で歯切れよく
-      notes.slice(1).forEach((f, i) => beep(f, 0.12 + i * 0.02, 'triangle', vol, (i + 1) * 0.025));
-    },
-    // 節目表示に合わせた明るい3音（クリア音のあとに続く）
-    milestone() {
-      beep(1047, 0.08, 'triangle', 0.09, 0.06);
-      beep(1319, 0.08, 'triangle', 0.09, 0.12);
-      beep(1568, 0.16, 'triangle', 0.09, 0.18);
+      beep(root * 1.26, 0.07, 'triangle', 0.09, 0.10);
+      beep(root * 1.5,  0.07, 'triangle', 0.09, 0.17);
+      beep(root * 2,    0.14, 'triangle', 0.09, 0.24);
     },
     tick()  { beep(1800, 0.03, 'square', 0.04); },
     boost() { beep(1320, 0.07, 'triangle', 0.1); beep(1760, 0.12, 'triangle', 0.1, 0.07); },
