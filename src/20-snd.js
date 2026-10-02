@@ -36,12 +36,12 @@ const Snd = (() => {
     unlock,
     // i: コマンド内の位置（0始まり）。打ち進むほど ド→レ→ミ… と上がる
     hit(i)  { beep(note(i || 0), 0.05); },
-    // 最後の1打。i はその位置で、直前の打鍵音（i−1）より上の「ド・ミ・ソ」で鳴る。
-    // 1音だけにする（和音にすると重なって聞こえた。倍率の段は画面の色で伝える）
-    clear(i) { beep(note(chordAbove((i || 0) - 1)), 0.09, 'square', 0.07); },
-    // 節目の3音。クリア音（0.09秒）が鳴り終わってから、その上の「ド・ミ・ソ」を3つ続ける
+    // 最後の1打も打鍵音とまったく同じ鳴らし方で、音階の次の音にする（本人の希望。
+    // 音色や長さを変えたり「ド・ミ・ソ」へ飛ばしたりすると、最後だけ浮いて聞こえた）
+    clear(i) { this.hit(i); },
+    // 節目の3音。最後の1打が鳴り終わってから、その上の「ド・ミ・ソ」を3つ続ける
     milestone(i) {
-      const a = chordAbove((i || 0) - 1), b = chordAbove(a), c = chordAbove(b), d = chordAbove(c);
+      const b = chordAbove(i || 0), c = chordAbove(b), d = chordAbove(c);
       beep(note(b), 0.07, 'triangle', 0.09, 0.10);
       beep(note(c), 0.07, 'triangle', 0.09, 0.17);
       beep(note(d), 0.14, 'triangle', 0.09, 0.24);
