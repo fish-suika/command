@@ -132,7 +132,7 @@ test('時間切れ後の入力は数えずに result へ移る', () => {
 
 test('tick は時間切れの瞬間に1度だけ true を返す', () => {
   const s = createState(); press(s, 'U', 0, R0);
-  eq(tick(s, 30000), false); eq(s.timeLeft, 30000);
+  eq(tick(s, CFG.TIME_LIMIT / 2), false); eq(s.timeLeft, CFG.TIME_LIMIT / 2);
   eq(tick(s, CFG.TIME_LIMIT + 5), true); eq(s.timeLeft, 0);
   eq(tick(s, CFG.TIME_LIMIT + 50), false);
 });

@@ -25,7 +25,7 @@
 
 // 遊びながら調整する数値はすべてここ
 const CFG = {
-  TIME_LIMIT: 60000,   // 制限時間 ms
+  TIME_LIMIT: 30000,   // 制限時間 ms
   LEN_START: 2,        // 最初のコマンドの長さ
   LEN_STEP: 5,         // 何コマンドクリアごとに1個長くなるか
   LEN_MAX: 9,          // 長さの上限
@@ -280,7 +280,7 @@ test('時間切れ後の入力は数えずに result へ移る', () => {
 
 test('tick は時間切れの瞬間に1度だけ true を返す', () => {
   const s = createState(); press(s, 'U', 0, R0);
-  eq(tick(s, 30000), false); eq(s.timeLeft, 30000);
+  eq(tick(s, CFG.TIME_LIMIT / 2), false); eq(s.timeLeft, CFG.TIME_LIMIT / 2);
   eq(tick(s, CFG.TIME_LIMIT + 5), true); eq(s.timeLeft, 0);
   eq(tick(s, CFG.TIME_LIMIT + 50), false);
 });
