@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>COMMAND</title>
+<style>
+  :root{--bg:#101218;--fg:#e8ecf4;--sub:#8a92a6;--dim:#3c4252;--accent:#5ad1ff;--ok:#7dffa0;--ng:#ff5a6a;--warn:#ffb648}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--fg);overflow:hidden;
+    font-family:"Segoe UI","Yu Gothic UI",system-ui,sans-serif;
+    touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  #app{height:100%;max-width:900px;margin:0 auto;padding:16px;display:flex;flex-direction:column}
+
+  #hud{display:flex;gap:12px}
+  .stat{flex:1;display:flex;flex-direction:column;align-items:center}
+  .stat .k{font-size:12px;letter-spacing:.2em;color:var(--sub)}
+  .stat .v{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+  #time.low{color:var(--warn)}
+
+  #stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  #cmd{display:flex;gap:.2em;font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
+  #cmd span{display:inline-block}
+  #cmd span.done{color:var(--dim)}
+  #cmd span.next{color:var(--accent);transform:scale(1.15)}
+  #cmd span.hit{animation:hit .15s ease-out}
+  #cmd span.miss{color:var(--ng);animation:shake .15s linear}
+  #cmd.pop{animation:pop .12s ease-out}
+  @keyframes hit{from{color:var(--ok);transform:scale(1.4)}to{color:var(--dim);transform:scale(1)}}
+  @keyframes shake{0%,100%{transform:translateX(0) scale(1.15)}25%{transform:translateX(-6px) scale(1.15)}75%{transform:translateX(6px) scale(1.15)}}
+  @keyframes pop{from{transform:scale(.85);opacity:.4}to{transform:scale(1);opacity:1}}
+  #msg{margin-top:20px;font-size:18px;color:var(--sub);text-align:center;min-height:1.5em}
+
+  #pad{display:none;grid-template-areas:". u ." "l d r";grid-template-columns:repeat(3,1fr);gap:10px;
+    width:min(100%,360px);margin:0 auto 8px}
+  #pad button{height:72px;font-size:34px;font-weight:700;color:var(--fg);background:#1d2130;
+    border:1px solid #2c3246;border-radius:14px;touch-action:none}
+  #pad button:active{background:#2a3350}
+  #pad .u{grid-area:u} #pad .l{grid-area:l} #pad .d{grid-area:d} #pad .r{grid-area:r}
+  @media (pointer:coarse){#pad{display:grid}}
+
+  #result{position:fixed;inset:0;background:rgba(16,18,24,.94);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;padding:16px}
+  #result[hidden]{display:none}
+  #result .title{font-size:22px;letter-spacing:.3em;color:var(--sub)}
+  #result dl{display:grid;grid-template-columns:auto auto;gap:6px 28px;font-size:18px}
+  #result dt{color:var(--sub);letter-spacing:.1em}
+  #result dd{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  #result dd.big{font-size:40px}
+  #retry{margin-top:8px;padding:16px 56px;font-size:28px;font-weight:700;letter-spacing:.15em;
+    color:var(--bg);background:var(--accent);border:0;border-radius:14px;touch-action:none}
+  #retry.locked{opacity:.35}
+  #result .hint{font-size:13px;color:var(--sub)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0</span></div>
+    <div class="stat"><span class="k">TIME</span><span class="v" id="time">60.0</span></div>
+    <div class="stat"><span class="k">COMBO</span><span class="v" id="combo">0</span></div>
+  </div>
+  <div id="stage">
+    <div id="cmd"></div>
+    <div id="msg"></div>
+  </div>
+  <div id="pad">
+    <button class="u" data-dir="U">↑</button>
+    <button class="l" data-dir="L">←</button>
+    <button class="d" data-dir="D">↓</button>
+    <button class="r" data-dir="R">→</button>
+  </div>
+</div>
+<div id="result" hidden>
+  <div class="title">RESULT</div>
+  <dl>
+    <dt>SCORE</dt><dd class="big" id="r-score">0</dd>
+    <dt>ACCURACY</dt><dd id="r-acc">100%</dd>
+    <dt>INPUTS</dt><dd id="r-inputs">0</dd>
+    <dt>MISS</dt><dd id="r-miss">0</dd>
+    <dt>MAX COMBO</dt><dd id="r-combo">0</dd>
+  </dl>
+  <button id="retry">RETRY</button>
+  <div class="hint">Enter / Space</div>
+</div>
+
+<script>
+// ===== COMMAND: ゲームロジック（DOM に触れない） =====
+// 時刻は呼び出し側が now（ミリ秒）で渡す。乱数 rand は省略時 Math.random。
+
+// 遊びながら調整する数値はすべてここ
+const CFG = {
+  TIME_LIMIT: 60000,   // 制限時間 ms
+  LEN_START: 2,        // 最初のコマンドの長さ
+  LEN_STEP: 5,         // 何コマンドクリアごとに1個長くなるか
+  LEN_MAX: 9,          // 長さの上限
+  PTS_PER_KEY: 100,    // 矢印1個あたりの基本点
+  SPEED_TARGET: 300,   // 1個あたりの目標時間 ms（これより速いとボーナス）
+  MISS_PENALTY: 50,    // ミス1回の減点
+  RESULT_LOCK: 600,    // 結果表示から RETRY を受け付けるまで ms
+};
+
+const DIRS = ['U', 'D', 'L', 'R'];
+
+function commandLength(cleared) {
+  return Math.min(CFG.LEN_START + Math.floor(cleared / CFG.LEN_STEP), CFG.LEN_MAX);
+}
+
+function makeCommand(len, rand) {
+  rand = rand || Math.random;
+  const cmd = [];
+  for (let i = 0; i < len; i++) cmd.push(DIRS[Math.floor(rand() * DIRS.length)]);
+  return cmd;
+}
+
+// 基本点 + 目標より速く打てた分のボーナス（長いコマンドほど大きい）
+function clearScore(len, elapsedMs) {
+  const base = CFG.PTS_PER_KEY * len;
+  const bonus = Math.round(Math.max(0, CFG.SPEED_TARGET * len - elapsedMs) * len / 10);
+  return base + bonus;
+}
+
+function accuracy(s) {
+  const total = s.inputs + s.misses;
+  return total === 0 ? 100 : Math.floor(s.inputs * 100 / total);
+}
+
+function createState() {
+  return {
+    phase: 'ready',          // 'ready' | 'playing' | 'result'
+    timeLeft: CFG.TIME_LIMIT,
+    endAt: 0,
+    resultAt: 0,
+    score: 0,
+    combo: 0,
+    maxCombo: 0,
+    cleared: 0,
+    inputs: 0,
+    misses: 0,
+    command: [],
+    pos: 0,
+    commandStartedAt: 0,
+  };
+}
+
+function nextCommand(s, now, rand) {
+  s.command = makeCommand(commandLength(s.cleared), rand);
+  s.pos = 0;
+  s.commandStartedAt = now;
+}
+
+function startGame(s, now, rand) {
+  Object.assign(s, createState());
+  s.phase = 'playing';
+  s.endAt = now + CFG.TIME_LIMIT;
+  nextCommand(s, now, rand);
+}
+
+// 残り時間を更新する。時間切れになった瞬間だけ true
+function tick(s, now) {
+  if (s.phase !== 'playing') return false;
+  s.timeLeft = Math.max(0, s.endAt - now);
+  if (s.timeLeft > 0) return false;
+  s.phase = 'result';
+  s.resultAt = now;
+  s.command = [];
+  s.pos = 0;
+  return true;
+}
+
+// 方向入力。戻り値: 'start' | 'hit' | 'clear' | 'miss' | 'end' | null
+function press(s, dir, now, rand) {
+  if (s.phase === 'ready') { startGame(s, now, rand); return 'start'; }
+  if (s.phase !== 'playing') return null;
+  if (tick(s, now)) return 'end';
+
+  if (dir === s.command[s.pos]) {
+    s.pos++;
+    s.inputs++;
+    if (s.pos < s.command.length) return 'hit';
+    s.score += clearScore(s.command.length, now - s.commandStartedAt);
+    s.cleared++;
+    s.combo++;
+    s.maxCombo = Math.max(s.maxCombo, s.combo);
+    nextCommand(s, now, rand);   // 待ち時間ゼロで次へ
+    return 'clear';
+  }
+
+  // ミス: 位置はそのまま、続けられる
+  s.misses++;
+  s.combo = 0;
+  s.score = Math.max(0, s.score - CFG.MISS_PENALTY);
+  return 'miss';
+}
+
+function canRetry(s, now) {
+  return s.phase === 'result' && now - s.resultAt >= CFG.RESULT_LOCK;
+}
+
+function retry(s, now, rand) {
+  if (!canRetry(s, now)) return false;
+  startGame(s, now, rand);
+  return true;
+}
+// ===== 効果音（波形合成。ファイルなし） =====
+const Snd = (() => {
+  let ac = null;
+  // 最初のユーザー入力で呼ぶ（自動再生制限のため）
+  function unlock() {
+    if (!ac) {
+      const C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ac = new C();
+    }
+    if (ac.state === 'suspended') ac.resume();
+    return ac;
+  }
+  function beep(freq, dur, type, vol, when) {
+    const a = unlock();
+    if (!a) return;
+    const t = a.currentTime + (when || 0);
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'square';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || 0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(a.destination);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  }
+  return {
+    unlock,
+    hit()   { beep(880, 0.05); },
+    clear() { beep(1320, 0.08); },
+    miss()  { beep(140, 0.15, 'sawtooth', 0.08); },
+    end()   { beep(660, 0.12, 'triangle', 0.12); beep(880, 0.12, 'triangle', 0.12, 0.12); beep(1100, 0.25, 'triangle', 0.12, 0.24); },
+  };
+})();
+// ===== 描画 =====
+const ARROW = { U: '↑', D: '↓', L: '←', R: '→' };
+const $ = id => document.getElementById(id);
+
+function renderTime(s) {
+  const t = $('time');
+  t.textContent = (s.timeLeft / 1000).toFixed(1);
+  t.classList.toggle('low', s.phase === 'playing' && s.timeLeft <= 10000);
+}
+
+// 9個並んでもスマホの縦画面で1行に収まるよう文字サイズを決める
+function fitCommand(len) {
+  const w = $('stage').clientWidth;
+  const size = Math.max(28, Math.min(72, Math.floor(w / (len * 1.35))));
+  $('cmd').style.setProperty('--cmd-size', size + 'px');
+}
+
+function restartAnim(el, cls) {
+  el.classList.remove(cls);
+  void el.offsetWidth; // アニメーションを最初から再生させる
+  el.classList.add(cls);
+}
+
+// ev: press() の戻り値、または 'end' / null
+function render(s, ev) {
+  $('score').textContent = s.score.toLocaleString();
+  $('combo').textContent = s.combo;
+  renderTime(s);
+
+  const cmd = $('cmd');
+  const msg = $('msg');
+  if (s.phase === 'playing') {
+    cmd.replaceChildren(...s.command.map((d, i) => {
+      const sp = document.createElement('span');
+      sp.textContent = ARROW[d];
+      if (i < s.pos) sp.className = 'done';
+      else if (i === s.pos) sp.className = 'next';
+      return sp;
+    }));
+    if (ev === 'hit') cmd.children[s.pos - 1].classList.add('hit');
+    if (ev === 'miss') cmd.children[s.pos].classList.add('miss');
+    if (ev === 'clear' || ev === 'start') restartAnim(cmd, 'pop');
+    fitCommand(s.command.length);
+    msg.textContent = '';
+  } else if (s.phase === 'ready') {
+    cmd.replaceChildren();
+    msg.textContent = '表示された矢印を順に入力 ／ 矢印キーかボタンでスタート';
+  } else {
+    cmd.replaceChildren();
+    msg.textContent = '';
+  }
+
+  $('result').hidden = s.phase !== 'result';
+  if (s.phase === 'result') {
+    $('r-score').textContent = s.score.toLocaleString();
+    $('r-acc').textContent = accuracy(s) + '%';
+    $('r-inputs').textContent = s.inputs;
+    $('r-miss').textContent = s.misses;
+    $('r-combo').textContent = s.maxCombo;
+  }
+}
+// ===== 入力（キーボードとタッチを onDir / onRetry に集約） =====
+// e.code で判定する（日本語入力ON でも WASD が効くように）
+const KEYMAP = {
+  ArrowUp: 'U', ArrowDown: 'D', ArrowLeft: 'L', ArrowRight: 'R',
+  KeyW: 'U', KeyS: 'D', KeyA: 'L', KeyD: 'R',
+};
+
+function bindInput(onDir, onRetry) {
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
+      e.preventDefault();
+      if (!e.repeat) onRetry();
+      return;
+    }
+    const dir = KEYMAP[e.code];
+    if (!dir) return;
+    e.preventDefault();          // 矢印キーでページがスクロールしないように
+    if (e.repeat) return;        // 押しっぱなしは無視
+    onDir(dir);
+  });
+
+  // pointerdown で即反応（click の遅延を避ける）
+  document.querySelectorAll('#pad button').forEach(b => {
+    b.addEventListener('pointerdown', e => { e.preventDefault(); onDir(b.dataset.dir); });
+  });
+  $('retry').addEventListener('pointerdown', e => { e.preventDefault(); onRetry(); });
+  window.addEventListener('contextmenu', e => e.preventDefault()); // 長押しメニューを出さない
+}
+// ===== 起動とループ =====
+const S = createState();
+
+function onDir(dir) {
+  Snd.unlock();
+  const ev = press(S, dir, performance.now());
+  if (ev === 'hit') Snd.hit();
+  else if (ev === 'clear') Snd.clear();
+  else if (ev === 'miss') Snd.miss();
+  else if (ev === 'end') Snd.end();
+  if (ev) render(S, ev);
+}
+
+function onRetry() {
+  Snd.unlock();
+  if (retry(S, performance.now())) render(S, 'start');
+}
+
+function loop() {
+  const now = performance.now();
+  if (tick(S, now)) { Snd.end(); render(S, 'end'); }
+  else if (S.phase === 'playing') renderTime(S);
+  if (S.phase === 'result') $('retry').classList.toggle('locked', !canRetry(S, now));
+  requestAnimationFrame(loop);
+}
+
+bindInput(onDir, onRetry);
+window.addEventListener('resize', () => { if (S.phase === 'playing') fitCommand(S.command.length); });
+render(S, null);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

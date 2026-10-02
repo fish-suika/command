@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>COMMAND</title>
+<style>
+  :root{--bg:#101218;--fg:#e8ecf4;--sub:#8a92a6;--dim:#3c4252;--accent:#5ad1ff;--ok:#7dffa0;--ng:#ff5a6a;--warn:#ffb648}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--fg);overflow:hidden;
+    font-family:"Segoe UI","Yu Gothic UI",system-ui,sans-serif;
+    touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+  #app{height:100%;max-width:900px;margin:0 auto;padding:16px;display:flex;flex-direction:column}
+
+  #hud{display:flex;gap:12px}
+  .stat{flex:1;display:flex;flex-direction:column;align-items:center}
+  .stat .k{font-size:12px;letter-spacing:.2em;color:var(--sub)}
+  .stat .v{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+  #time.low{color:var(--warn)}
+
+  #stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  #cmd{display:flex;gap:.2em;font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
+  #cmd span{display:inline-block}
+  #cmd span.done{color:var(--dim)}
+  #cmd span.next{color:var(--accent);transform:scale(1.15)}
+  #cmd span.hit{animation:hit .15s ease-out}
+  #cmd span.miss{color:var(--ng);animation:shake .15s linear}
+  #cmd.pop{animation:pop .12s ease-out}
+  @keyframes hit{from{color:var(--ok);transform:scale(1.4)}to{color:var(--dim);transform:scale(1)}}
+  @keyframes shake{0%,100%{transform:translateX(0) scale(1.15)}25%{transform:translateX(-6px) scale(1.15)}75%{transform:translateX(6px) scale(1.15)}}
+  @keyframes pop{from{transform:scale(.85);opacity:.4}to{transform:scale(1);opacity:1}}
+  #msg{margin-top:20px;font-size:18px;color:var(--sub);text-align:center;min-height:1.5em}
+
+  #pad{display:none;grid-template-areas:". u ." "l d r";grid-template-columns:repeat(3,1fr);gap:10px;
+    width:min(100%,360px);margin:0 auto 8px}
+  #pad button{height:72px;font-size:34px;font-weight:700;color:var(--fg);background:#1d2130;
+    border:1px solid #2c3246;border-radius:14px;touch-action:none}
+  #pad button:active{background:#2a3350}
+  #pad .u{grid-area:u} #pad .l{grid-area:l} #pad .d{grid-area:d} #pad .r{grid-area:r}
+  @media (pointer:coarse){#pad{display:grid}}
+
+  #result{position:fixed;inset:0;background:rgba(16,18,24,.94);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;padding:16px}
+  #result[hidden]{display:none}
+  #result .title{font-size:22px;letter-spacing:.3em;color:var(--sub)}
+  #result dl{display:grid;grid-template-columns:auto auto;gap:6px 28px;font-size:18px}
+  #result dt{color:var(--sub);letter-spacing:.1em}
+  #result dd{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  #result dd.big{font-size:40px}
+  #retry{margin-top:8px;padding:16px 56px;font-size:28px;font-weight:700;letter-spacing:.15em;
+    color:var(--bg);background:var(--accent);border:0;border-radius:14px;touch-action:none}
+  #retry.locked{opacity:.35}
+  #result .hint{font-size:13px;color:var(--sub)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0</span></div>
+    <div class="stat"><span class="k">TIME</span><span class="v" id="time">60.0</span></div>
+    <div class="stat"><span class="k">COMBO</span><span class="v" id="combo">0</span></div>
+  </div>
+  <div id="stage">
+    <div id="cmd"></div>
+    <div id="msg"></div>
+  </div>
+  <div id="pad">
+    <button class="u" data-dir="U">↑</button>
+    <button class="l" data-dir="L">←</button>
+    <button class="d" data-dir="D">↓</button>
+    <button class="r" data-dir="R">→</button>
+  </div>
+</div>
+<div id="result" hidden>
+  <div class="title">RESULT</div>
+  <dl>
+    <dt>SCORE</dt><dd class="big" id="r-score">0</dd>
+    <dt>ACCURACY</dt><dd id="r-acc">100%</dd>
+    <dt>INPUTS</dt><dd id="r-inputs">0</dd>
+    <dt>MISS</dt><dd id="r-miss">0</dd>
+    <dt>MAX COMBO</dt><dd id="r-combo">0</dd>
+  </dl>
+  <button id="retry">RETRY</button>
+  <div class="hint">Enter / Space</div>
+</div>
+
+<script>

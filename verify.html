@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>検証 — COMMAND</title>
+<style>
+  body{font-family:"Yu Gothic UI",system-ui,sans-serif;background:#1c1c1e;color:#eee;padding:24px;line-height:1.7}
+  h1{font-size:18px;margin-bottom:16px}
+  .r{padding:4px 0;border-bottom:1px solid #333}
+  .ok::before{content:"PASS ";color:#6bd07a;font-weight:bold}
+  .ng::before{content:"FAIL ";color:#ff6b6b;font-weight:bold}
+  .ng{color:#ffb0b0}
+  .why{color:#ff8f8f;padding-left:3em;font-size:13px}
+  #sum{margin-top:18px;font-size:16px;font-weight:bold}
+</style>
+</head>
+<body>
+<h1>COMMAND — 検証</h1>
+<div id="out"></div>
+<div id="sum"></div>
+
+<script>
+// ===== COMMAND: ゲームロジック（DOM に触れない） =====
+// 時刻は呼び出し側が now（ミリ秒）で渡す。乱数 rand は省略時 Math.random。
+
+// 遊びながら調整する数値はすべてここ
+const CFG = {
+  TIME_LIMIT: 60000,   // 制限時間 ms
+  LEN_START: 2,        // 最初のコマンドの長さ
+  LEN_STEP: 5,         // 何コマンドクリアごとに1個長くなるか
+  LEN_MAX: 9,          // 長さの上限
+  PTS_PER_KEY: 100,    // 矢印1個あたりの基本点
+  SPEED_TARGET: 300,   // 1個あたりの目標時間 ms（これより速いとボーナス）
+  MISS_PENALTY: 50,    // ミス1回の減点
+  RESULT_LOCK: 600,    // 結果表示から RETRY を受け付けるまで ms
+};
+
+const DIRS = ['U', 'D', 'L', 'R'];
+
+function commandLength(cleared) {
+  return Math.min(CFG.LEN_START + Math.floor(cleared / CFG.LEN_STEP), CFG.LEN_MAX);
+}
+
+function makeCommand(len, rand) {
+  rand = rand || Math.random;
+  const cmd = [];
+  for (let i = 0; i < len; i++) cmd.push(DIRS[Math.floor(rand() * DIRS.length)]);
+  return cmd;
+}
+
+// 基本点 + 目標より速く打てた分のボーナス（長いコマンドほど大きい）
+function clearScore(len, elapsedMs) {
+  const base = CFG.PTS_PER_KEY * len;
+  const bonus = Math.round(Math.max(0, CFG.SPEED_TARGET * len - elapsedMs) * len / 10);
+  return base + bonus;
+}
+
+function accuracy(s) {
+  const total = s.inputs + s.misses;
+  return total === 0 ? 100 : Math.floor(s.inputs * 100 / total);
+}
+
+function createState() {
+  return {
+    phase: 'ready',          // 'ready' | 'playing' | 'result'
+    timeLeft: CFG.TIME_LIMIT,
+    endAt: 0,
+    resultAt: 0,
+    score: 0,
+    combo: 0,
+    maxCombo: 0,
+    cleared: 0,
+    inputs: 0,
+    misses: 0,
+    command: [],
+    pos: 0,
+    commandStartedAt: 0,
+  };
+}
+
+function nextCommand(s, now, rand) {
+  s.command = makeCommand(commandLength(s.cleared), rand);
+  s.pos = 0;
+  s.commandStartedAt = now;
+}
+
+function startGame(s, now, rand) {
+  Object.assign(s, createState());
+  s.phase = 'playing';
+  s.endAt = now + CFG.TIME_LIMIT;
+  nextCommand(s, now, rand);
+}
+
+// 残り時間を更新する。時間切れになった瞬間だけ true
+function tick(s, now) {
+  if (s.phase !== 'playing') return false;
+  s.timeLeft = Math.max(0, s.endAt - now);
+  if (s.timeLeft > 0) return false;
+  s.phase = 'result';
+  s.resultAt = now;
+  s.command = [];
+  s.pos = 0;
+  return true;
+}
+
+// 方向入力。戻り値: 'start' | 'hit' | 'clear' | 'miss' | 'end' | null
+function press(s, dir, now, rand) {
+  if (s.phase === 'ready') { startGame(s, now, rand); return 'start'; }
+  if (s.phase !== 'playing') return null;
+  if (tick(s, now)) return 'end';
+
+  if (dir === s.command[s.pos]) {
+    s.pos++;
+    s.inputs++;
+    if (s.pos < s.command.length) return 'hit';
+    s.score += clearScore(s.command.length, now - s.commandStartedAt);
+    s.cleared++;
+    s.combo++;
+    s.maxCombo = Math.max(s.maxCombo, s.combo);
+    nextCommand(s, now, rand);   // 待ち時間ゼロで次へ
+    return 'clear';
+  }
+
+  // ミス: 位置はそのまま、続けられる
+  s.misses++;
+  s.combo = 0;
+  s.score = Math.max(0, s.score - CFG.MISS_PENALTY);
+  return 'miss';
+}
+
+function canRetry(s, now) {
+  return s.phase === 'result' && now - s.resultAt >= CFG.RESULT_LOCK;
+}
+
+function retry(s, now, rand) {
+  if (!canRetry(s, now)) return false;
+  startGame(s, now, rand);
+  return true;
+}
+// ===== 検証ハーネス =====
+const __results = [];
+function test(name, fn) {
+  try { fn(); __results.push({ name, ok: true }); }
+  catch (e) { __results.push({ name, ok: false, why: e.message }); }
+}
+function eq(actual, expected, label) {
+  const a = JSON.stringify(actual), b = JSON.stringify(expected);
+  if (a !== b) throw new Error((label ? label + ': ' : '') + 'expected ' + b + ' but got ' + a);
+}
+// 渡した値を順に返す乱数（末尾まで行ったら先頭に戻る）
+function seqRand(vals) { let i = 0; return () => vals[i++ % vals.length]; }
+const R0 = seqRand([0]); // 常に 'U' を出す
+
+// ===== テスト =====
+test('commandLength: クリア数に応じて伸び、上限で止まる', () => {
+  eq(commandLength(0), 2, '0');
+  eq(commandLength(4), 2, '4');
+  eq(commandLength(5), 3, '5');
+  eq(commandLength(35), 9, '35');
+  eq(commandLength(100), 9, '100');
+});
+
+test('makeCommand: 乱数を固定すると決まった並びになる', () => {
+  eq(makeCommand(4, seqRand([0, 0.25, 0.5, 0.75])), ['U', 'D', 'L', 'R']);
+  eq(makeCommand(3, seqRand([0.99])), ['R', 'R', 'R']);
+});
+
+test('clearScore: 基本点＋速さボーナス', () => {
+  eq(clearScore(2, 0), 320, '最速');
+  eq(clearScore(2, 600), 200, 'ちょうど目標時間');
+  eq(clearScore(2, 1000), 200, '目標より遅い');
+  eq(clearScore(3, 450), 435, '途中');
+});
+
+test('accuracy: 0除算を含む', () => {
+  const s = createState();
+  eq(accuracy(s), 100, '0/0');
+  s.inputs = 97; s.misses = 3; eq(accuracy(s), 97, '97/100');
+  s.inputs = 2; s.misses = 1; eq(accuracy(s), 66, '2/3 は切り捨て');
+});
+
+test('ready で方向を押すと開始し、その入力は数えない', () => {
+  const s = createState();
+  eq(s.phase, 'ready');
+  eq(press(s, 'L', 1000, R0), 'start');
+  eq(s.phase, 'playing');
+  eq(s.command, ['U', 'U']);
+  eq(s.pos, 0); eq(s.inputs, 0); eq(s.misses, 0);
+  eq(s.endAt, 1000 + CFG.TIME_LIMIT);
+  eq(s.commandStartedAt, 1000);
+});
+
+test('正解キーで pos と inputs が進む', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  eq(press(s, 'U', 100, R0), 'hit');
+  eq(s.pos, 1); eq(s.inputs, 1);
+});
+
+test('ミスしても pos は動かず、スコアは0未満にならない', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  press(s, 'U', 100, R0);
+  eq(press(s, 'D', 200, R0), 'miss');
+  eq(s.pos, 1); eq(s.misses, 1); eq(s.combo, 0); eq(s.score, 0);
+});
+
+test('最後まで入力するとクリアし、同じ処理で次のコマンドが出る', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  press(s, 'U', 100, R0);
+  eq(press(s, 'U', 200, R0), 'clear');
+  eq(s.cleared, 1); eq(s.combo, 1); eq(s.maxCombo, 1);
+  eq(s.score, clearScore(2, 200));
+  eq(s.command, ['U', 'U']); eq(s.pos, 0);
+  eq(s.commandStartedAt, 200);
+});
+
+test('ミスでスコアが MISS_PENALTY 減り、コンボが切れる', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  press(s, 'U', 100, R0); press(s, 'U', 200, R0); // クリア
+  const before = s.score;
+  eq(press(s, 'L', 300, R0), 'miss');
+  eq(s.score, before - CFG.MISS_PENALTY);
+  eq(s.combo, 0); eq(s.maxCombo, 1);
+});
+
+test('5回クリアするとコマンドが3個になる', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  let t = 0;
+  for (let c = 0; c < 5; c++) { while (true) { t += 10; if (press(s, 'U', t, R0) === 'clear') break; } }
+  eq(s.cleared, 5); eq(s.command.length, 3);
+});
+
+test('時間切れ後の入力は数えずに result へ移る', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  eq(press(s, 'U', CFG.TIME_LIMIT, R0), 'end');
+  eq(s.phase, 'result'); eq(s.inputs, 0); eq(s.resultAt, CFG.TIME_LIMIT);
+  eq(s.command, []);
+  eq(press(s, 'U', CFG.TIME_LIMIT + 10, R0), null, 'result 中の方向キーは無視');
+});
+
+test('tick は時間切れの瞬間に1度だけ true を返す', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  eq(tick(s, 30000), false); eq(s.timeLeft, 30000);
+  eq(tick(s, CFG.TIME_LIMIT + 5), true); eq(s.timeLeft, 0);
+  eq(tick(s, CFG.TIME_LIMIT + 50), false);
+});
+
+test('RETRY は結果表示から RESULT_LOCK 経つまで効かない', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  press(s, 'D', 100, R0); // ミス1
+  tick(s, CFG.TIME_LIMIT);
+  eq(canRetry(s, CFG.TIME_LIMIT + CFG.RESULT_LOCK - 1), false);
+  eq(retry(s, CFG.TIME_LIMIT + CFG.RESULT_LOCK - 1, R0), false);
+  eq(s.phase, 'result');
+  const t = CFG.TIME_LIMIT + CFG.RESULT_LOCK;
+  eq(retry(s, t, R0), true);
+  eq(s.phase, 'playing'); eq(s.misses, 0); eq(s.score, 0);
+  eq(s.endAt, t + CFG.TIME_LIMIT); eq(s.command.length, 2);
+});
+
+test('playing 中・ready 中は RETRY が効かない', () => {
+  const s = createState();
+  eq(retry(s, 99999, R0), false);
+  press(s, 'U', 0, R0);
+  eq(retry(s, 99999, R0), false);
+});
+
+// ===== 結果表示 =====
+(function () {
+  const out = document.getElementById('out');
+  let pass = 0;
+  for (const r of __results) {
+    const d = document.createElement('div');
+    d.className = 'r ' + (r.ok ? 'ok' : 'ng');
+    d.textContent = r.name;
+    out.appendChild(d);
+    if (r.ok) pass++;
+    else { const w = document.createElement('div'); w.className = 'why'; w.textContent = r.why; out.appendChild(w); }
+  }
+  const sum = pass + '/' + __results.length;
+  document.getElementById('sum').textContent = (pass === __results.length ? 'すべて通過 ' : '失敗あり ') + sum;
+  document.title = (pass === __results.length ? 'PASS ' : 'FAIL ') + sum;
+})();
+</script>
+</body>
+</html>
