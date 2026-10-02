@@ -13,11 +13,12 @@ function tickSound() {
 
 function onDir(dir) {
   Snd.unlock();
+  const len = S.command.length;   // クリアすると press() の中で次のコマンドに替わるので先に取る
   const ev = press(S, dir, performance.now());
   if (ev === 'start') lastSec = Infinity;
   else if (ev === 'hit') Snd.hit(S.pos - 1);
   else if (ev === 'clear') {
-    Snd.clear(comboTier(S.combo));
+    Snd.clear(comboTier(S.combo), len - 1);
     if (isComboMilestone(S.combo)) Snd.milestone();   // boost と同時のときは boost だけ
   }
   else if (ev === 'boost') Snd.boost();

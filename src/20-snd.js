@@ -11,6 +11,10 @@ const Snd = (() => {
     if (ac.state === 'suspended') ac.resume();
     return ac;
   }
+  // 打鍵音の音階。最後の1打（クリア音）も同じ並びの続きで鳴らす。
+  // 9個目の根音が 1047Hz（ド）に収まるよう 660Hz から始める
+  const step = i => 660 * 2 ** ((i || 0) / 12);
+
   function beep(freq, dur, type, vol, when) {
     const a = unlock();
     if (!a) return;
@@ -27,13 +31,14 @@ const Snd = (() => {
   return {
     unlock,
     // i: コマンド内の位置（0始まり）。打ち進むほど半音ずつ上がる
-    hit(i)  { beep(880 * 2 ** ((i || 0) / 12), 0.05); },
-    // tier: 倍率の段（0〜4）。段ごとに ド→ミ→ソ→ド→ミ と1音ずつ足す分散和音。
-    // 根音の高さは固定する（以前は根音ごと上げて矩形波を同時に重ねたため、
-    // 高い段で 2〜5kHz の濁った塊になっていた）
-    clear(tier) {
+    hit(i)  { beep(step(i), 0.05); },
+    // 最後の1打。i はその位置なので、直前の打鍵音より半音上から鳴る。
+    // tier: 倍率の段（0〜4）。段ごとに 長3度→5度→オクターブ→その上の3度 と1音ずつ足す分散和音
+    // （以前は根音ごと上げて矩形波を同時に重ねたため、高い段で 2〜5kHz の濁った塊になっていた）
+    clear(tier, i) {
       const n = 1 + Math.min(tier || 0, 4);
-      const notes = [1047, 1319, 1568, 2093, 2637].slice(0, n);
+      const root = step(i);
+      const notes = [1, 1.26, 1.5, 2, 2.52].slice(0, n).map(r => root * r);
       const vol = 0.09 / Math.sqrt(n);   // 音を重ねても全体の音量はほぼ一定
       beep(notes[0], 0.08, 'square', 0.06); // 根音は打鍵音と同じ音色で歯切れよく
       notes.slice(1).forEach((f, i) => beep(f, 0.12 + i * 0.02, 'triangle', vol, (i + 1) * 0.025));
