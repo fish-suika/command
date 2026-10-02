@@ -63,7 +63,7 @@ function renderCombo(s, ev) {
     restartAnim($('ring'), 'go');
     restartAnim($('score'), 'bump');
     if (isComboMilestone(s.combo)) {
-      pop.textContent = s.combo + ' COMBO!';
+      pop.textContent = s.combo + 'コンボ！';
       pop.classList.toggle('big', s.combo >= 30);
       restartAnim(pop, 'go');
     }
@@ -83,14 +83,14 @@ function renderBest(r) {
   if (r.isNew) {
     const n = document.createElement('span');
     n.className = 'rec';
-    n.textContent = 'NEW RECORD!';
+    n.textContent = '自己ベスト更新！';
     el.appendChild(n);
     return;
   }
-  el.appendChild(document.createTextNode('BEST ' + r.best.toLocaleString()));
+  el.appendChild(document.createTextNode('ベスト ' + r.best.toLocaleString()));
   if (r.best > 0 && r.diff > 0) {
     el.appendChild(document.createElement('br'));
-    el.appendChild(document.createTextNode(r.diff.toLocaleString() + ' PTS TO BEST'));
+    el.appendChild(document.createTextNode('ベストまで あと ' + r.diff.toLocaleString()));
   }
 }
 
@@ -119,18 +119,18 @@ function render(s, ev, info) {
     if (ev === 'clear' || ev === 'boost' || ev === 'start') restartAnim(cmd, 'pop');
     if (ev === 'boost') {
       restartAnim($('time'), 'boost');
-      $('time-plus').textContent = '+' + CFG.GAUGE_BONUS / 1000 + 's';
+      $('time-plus').textContent = '+' + CFG.GAUGE_BONUS / 1000 + '秒';
       restartAnim($('time-plus'), 'go');
     }
     fitCommand();
     msg.textContent = '';
   } else if (s.phase === 'ready') {
     cmd.replaceChildren();
-    msg.textContent = 'ENTER THE ARROWS IN ORDER  ·  PRESS ANY ARROW TO START';
+    msg.replaceChildren('表示された矢印を順に入力', document.createElement('br'), '矢印キー／ボタンでスタート');
     if (info.best > 0) {
       const b = document.createElement('span');
       b.className = 'best';
-      b.textContent = 'BEST ' + info.best.toLocaleString();
+      b.textContent = 'ベスト ' + info.best.toLocaleString();
       msg.appendChild(b);
     }
   } else {
@@ -147,7 +147,7 @@ function render(s, ev, info) {
     $('r-acc').textContent = accuracy(s) + '%';
     $('r-inputs').textContent = s.inputs;
     $('r-miss').textContent = s.misses;
-    $('r-combo').textContent = s.maxCombo + '  (×' + s.maxMult + ')';
-    $('r-bonus').textContent = '+' + (s.boosts * CFG.GAUGE_BONUS / 1000) + 's';
+    $('r-combo').textContent = s.maxCombo + '（×' + s.maxMult + '）';
+    $('r-bonus').textContent = '+' + (s.boosts * CFG.GAUGE_BONUS / 1000) + '秒';
   }
 }

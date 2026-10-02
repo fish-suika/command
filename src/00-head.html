@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -25,7 +25,7 @@
 
   #hud{display:flex;gap:12px}
   .stat{flex:1;display:flex;flex-direction:column;align-items:center}
-  .stat .k{font-size:12px;letter-spacing:.2em;color:var(--sub)}
+  .stat .k{font-size:12px;letter-spacing:.08em;color:var(--sub)}
   .stat .v{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
   #time.low{color:var(--warn)}
   .stat.timebox{position:relative}
@@ -83,29 +83,29 @@
   #result{position:fixed;inset:0;background:rgba(16,18,24,.94);display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:12px;padding:16px}
   #result[hidden]{display:none}
-  #result .title{font-size:22px;letter-spacing:.3em;color:var(--sub)}
+  #result .title{font-size:22px;letter-spacing:.15em;color:var(--sub)}
   #result dl{display:grid;grid-template-columns:auto auto;gap:6px 28px;font-size:18px}
-  #result dt{color:var(--sub);letter-spacing:.1em}
+  #result dt{color:var(--sub);letter-spacing:.03em}
   #result dd{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
   #result dd.big{font-size:40px}
-  #retry{margin-top:8px;padding:16px 56px;font-size:28px;font-weight:700;letter-spacing:.15em;
+  #retry{margin-top:8px;padding:16px 56px;font-size:28px;font-weight:700;letter-spacing:.08em;
     color:var(--bg);background:var(--accent);border:0;border-radius:14px;touch-action:none}
   #retry.locked{opacity:.35}
   #result .hint{font-size:13px;color:var(--sub)}
   #result .bestline{grid-column:1/-1;text-align:right;font-size:14px;color:var(--sub);line-height:1.5}
-  #result .bestline .rec{display:block;font-size:26px;font-weight:700;letter-spacing:.1em;color:var(--accent);text-align:center;
+  #result .bestline .rec{display:block;font-size:26px;font-weight:700;letter-spacing:.05em;color:var(--accent);text-align:center;
     text-shadow:0 0 12px var(--accent);animation:recpop .5s ease-out}
   @keyframes recpop{0%{opacity:0;transform:scale(.5)}60%{transform:scale(1.25)}100%{opacity:1;transform:scale(1)}}
-  #msg .best{display:block;margin-top:8px;font-size:14px;letter-spacing:.1em}
+  #msg .best{display:block;margin-top:8px;font-size:14px;letter-spacing:.03em}
 </style>
 </head>
 <body>
 <div id="app" data-tier="0">
   <div id="glow"></div>
   <div id="hud">
-    <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0</span></div>
-    <div class="stat timebox"><span class="k">TIME</span><span class="v" id="time">30.0</span><span id="time-plus">+3s</span></div>
-    <div class="stat combobox"><span class="k">COMBO</span><span class="v" id="combo">0</span><span id="mult" hidden>×1.5</span></div>
+    <div class="stat"><span class="k">スコア</span><span class="v" id="score">0</span></div>
+    <div class="stat timebox"><span class="k">タイム</span><span class="v" id="time">30.0</span><span id="time-plus">+3秒</span></div>
+    <div class="stat combobox"><span class="k">コンボ</span><span class="v" id="combo">0</span><span id="mult" hidden>×1.5</span></div>
   </div>
   <div id="gauge"><div id="gauge-fill"></div></div>
   <div id="stage">
@@ -121,18 +121,18 @@
   </div>
 </div>
 <div id="result" hidden>
-  <div class="title">RESULT</div>
+  <div class="title">結果</div>
   <dl>
-    <dt>SCORE</dt><dd class="big" id="r-score">0</dd>
+    <dt>スコア</dt><dd class="big" id="r-score">0</dd>
     <div class="bestline" id="r-best"></div>
-    <dt>ACCURACY</dt><dd id="r-acc">100%</dd>
-    <dt>INPUTS</dt><dd id="r-inputs">0</dd>
-    <dt>MISS</dt><dd id="r-miss">0</dd>
-    <dt>MAX COMBO</dt><dd id="r-combo">0</dd>
-    <dt>TIME BONUS</dt><dd id="r-bonus">+0s</dd>
+    <dt>正確さ</dt><dd id="r-acc">100%</dd>
+    <dt>入力数</dt><dd id="r-inputs">0</dd>
+    <dt>ミス</dt><dd id="r-miss">0</dd>
+    <dt>最大コンボ</dt><dd id="r-combo">0</dd>
+    <dt>時間ボーナス</dt><dd id="r-bonus">+0秒</dd>
   </dl>
-  <button id="retry">RETRY</button>
-  <div class="hint">Enter / Space</div>
+  <button id="retry">もう一度</button>
+  <div class="hint">Enter・Space キーでも</div>
 </div>
 
 <script>
