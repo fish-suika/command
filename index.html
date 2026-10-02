@@ -109,6 +109,9 @@ const CFG = {
   GAUGE_BONUS: 3000,   // 満タンで増える時間 ms
   MISS_PENALTY: 50,    // ミス1回の減点
   RESULT_LOCK: 600,    // 結果表示から RETRY を受け付けるまで ms
+  COMBO_STEP: 10,      // 何コンボごとに倍率が上がるか
+  COMBO_RATE: 0.5,     // 1段あたり上がる倍率
+  COMBO_MULT_MAX: 3,   // 倍率の上限
 };
 
 const DIRS = ['U', 'D', 'L', 'R'];
@@ -127,6 +130,20 @@ function makeCommand(len, rand) {
 // クリア得点 = 矢印1個あたりの基本点 × 長さ
 function clearScore(len) {
   return CFG.PTS_PER_KEY * len;
+}
+
+function comboMult(combo) {
+  return Math.min(1 + CFG.COMBO_RATE * Math.floor(combo / CFG.COMBO_STEP), CFG.COMBO_MULT_MAX);
+}
+
+// 倍率の段（0 = ×1 … 上限で最大）。演出の色・音の切り替えに使う
+function comboTier(combo) {
+  return Math.round((comboMult(combo) - 1) / CFG.COMBO_RATE);
+}
+
+// コンボ表示を出す節目: 5 と COMBO_STEP の倍数
+function isComboMilestone(combo) {
+  return combo === 5 || (combo > 0 && combo % CFG.COMBO_STEP === 0);
 }
 
 function accuracy(s) {

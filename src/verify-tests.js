@@ -160,6 +160,55 @@ test('playing 中・ready 中は RETRY が効かない', () => {
   eq(retry(s, 99999, R0), false);
 });
 
+test('comboMult: COMBO_STEP ごとに COMBO_RATE ずつ上がり、上限で止まる', () => {
+  const N = CFG.COMBO_STEP, r = CFG.COMBO_RATE, M = CFG.COMBO_MULT_MAX;
+  eq(comboMult(0), 1, '0');
+  eq(comboMult(N - 1), 1, 'STEP-1');
+  eq(comboMult(N), 1 + r, 'STEP');
+  eq(comboMult(N * 2), 1 + r * 2, 'STEP*2');
+  eq(comboMult(N * 1000), M, '上限');
+});
+
+test('comboTier: 倍率の段（0 から上限の段まで）', () => {
+  const N = CFG.COMBO_STEP, r = CFG.COMBO_RATE, M = CFG.COMBO_MULT_MAX;
+  eq(comboTier(0), 0, '0');
+  eq(comboTier(N), 1, 'STEP');
+  eq(comboTier(N * 2), 2, 'STEP*2');
+  eq(comboTier(N * 1000), Math.round((M - 1) / r), '上限');
+});
+
+test('isComboMilestone: 5 と COMBO_STEP の倍数だけ', () => {
+  const N = CFG.COMBO_STEP;
+  eq(isComboMilestone(0), false, '0');
+  eq(isComboMilestone(4), false, '4');
+  eq(isComboMilestone(5), true, '5');
+  eq(isComboMilestone(N), true, 'STEP');
+  eq(isComboMilestone(N + 1), false, 'STEP+1');
+  eq(isComboMilestone(N * 3), true, 'STEP*3');
+});
+
+test('クリア時の得点にクリア後のコンボの倍率がかかる', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  const T = { t: 0 };
+  for (let c = 0; c < CFG.COMBO_STEP - 1; c++) clearOne(s, T);
+  const len = s.command.length, before = s.score;
+  clearOne(s, T);
+  eq(s.combo, CFG.COMBO_STEP);
+  eq(s.score - before, Math.round(clearScore(len) * comboMult(CFG.COMBO_STEP)));
+  eq(s.maxMult, comboMult(CFG.COMBO_STEP), 'maxMult');
+});
+
+test('ミスすると倍率が ×1 に戻る（到達した最大倍率は残る）', () => {
+  const s = createState(); press(s, 'U', 0, R0);
+  const T = { t: 0 };
+  for (let c = 0; c < CFG.COMBO_STEP; c++) clearOne(s, T);
+  eq(press(s, 'D', T.t += 10, R0), 'miss');
+  const len = s.command.length, before = s.score;
+  clearOne(s, T);
+  eq(s.score - before, clearScore(len));
+  eq(s.maxMult, comboMult(CFG.COMBO_STEP), 'maxMult は戻らない');
+});
+
 // ===== 結果表示 =====
 (function () {
   const out = document.getElementById('out');
