@@ -8,6 +8,7 @@ cat src/00-head.html \
     src/20-snd.js \
     src/30-view.js \
     src/40-input.js \
+    src/50-store.js \
     src/95-boot.js \
     src/99-tail.html > command.html
 cp command.html index.html   # GitHub Pages はルートの index.html を配信する

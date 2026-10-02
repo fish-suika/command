@@ -143,3 +143,9 @@ function retry(s, now, rand) {
   startGame(s, now, rand);
   return true;
 }
+
+// 自己ベストとの比較。best は保存済みのベスト（無ければ 0）
+function judgeBest(score, best) {
+  const isNew = score > best;
+  return { isNew, best: isNew ? score : best, diff: isNew ? 0 : best - score };
+}

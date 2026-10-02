@@ -75,8 +75,29 @@ function renderCombo(s, ev) {
   prevCombo = playing ? s.combo : 0;
 }
 
+// 自己ベストの表示（結果画面の SCORE の下）。r = judgeBest() の結果
+function renderBest(r) {
+  const el = $('r-best');
+  el.replaceChildren();
+  if (!r) return;
+  if (r.isNew) {
+    const n = document.createElement('span');
+    n.className = 'rec';
+    n.textContent = 'NEW RECORD!';
+    el.appendChild(n);
+    return;
+  }
+  el.appendChild(document.createTextNode('BEST ' + r.best.toLocaleString()));
+  if (r.best > 0 && r.diff > 0) {
+    el.appendChild(document.createElement('br'));
+    el.appendChild(document.createTextNode('自己ベストまで あと ' + r.diff.toLocaleString()));
+  }
+}
+
 // ev: press() の戻り値、または 'end' / null
-function render(s, ev) {
+// info: { best: 保存済みの自己ベスト, r: 直近の judgeBest() の結果 }（省略可）
+function render(s, ev, info) {
+  info = info || { best: 0, r: null };
   $('score').textContent = s.score.toLocaleString();
   $('combo').textContent = s.combo;
   renderTime(s);
@@ -106,6 +127,12 @@ function render(s, ev) {
   } else if (s.phase === 'ready') {
     cmd.replaceChildren();
     msg.textContent = '表示された矢印を順に入力 ／ 矢印キーかボタンでスタート';
+    if (info.best > 0) {
+      const b = document.createElement('span');
+      b.className = 'best';
+      b.textContent = 'BEST ' + info.best.toLocaleString();
+      msg.appendChild(b);
+    }
   } else {
     cmd.replaceChildren();
     msg.textContent = '';
@@ -116,6 +143,7 @@ function render(s, ev) {
   if (s.phase === 'result') {
     if (ev === 'end') countUp($('r-score'), s.score, COUNT_UP_MS);
     else $('r-score').textContent = s.score.toLocaleString();
+    renderBest(info.r);
     $('r-acc').textContent = accuracy(s) + '%';
     $('r-inputs').textContent = s.inputs;
     $('r-miss').textContent = s.misses;

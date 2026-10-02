@@ -209,6 +209,31 @@ test('ミスすると倍率が ×1 に戻る（到達した最大倍率は残る
   eq(s.maxMult, comboMult(CFG.COMBO_STEP), 'maxMult は戻らない');
 });
 
+test('judgeBest: 初プレイ（best 0）は更新扱いで best が score になる', () => {
+  const r = judgeBest(500, 0);
+  eq(r.isNew, true, 'isNew'); eq(r.best, 500, 'best'); eq(r.diff, 0, 'diff');
+});
+
+test('judgeBest: 自己ベストを超えたら更新', () => {
+  const r = judgeBest(1300, 1200);
+  eq(r.isNew, true, 'isNew'); eq(r.best, 1300, 'best'); eq(r.diff, 0, 'diff');
+});
+
+test('judgeBest: 同点は更新ではない（diff 0）', () => {
+  const r = judgeBest(1200, 1200);
+  eq(r.isNew, false, 'isNew'); eq(r.best, 1200, 'best'); eq(r.diff, 0, 'diff');
+});
+
+test('judgeBest: 下回ると差が出て best は変わらない', () => {
+  const r = judgeBest(900, 1200);
+  eq(r.isNew, false, 'isNew'); eq(r.best, 1200, 'best'); eq(r.diff, 300, 'diff');
+});
+
+test('judgeBest: score 0 かつ best 0 は更新ではない', () => {
+  const r = judgeBest(0, 0);
+  eq(r.isNew, false, 'isNew'); eq(r.best, 0, 'best'); eq(r.diff, 0, 'diff');
+});
+
 // ===== 結果表示 =====
 (function () {
   const out = document.getElementById('out');

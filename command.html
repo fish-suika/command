@@ -81,7 +81,7 @@
   @media (pointer:coarse){#pad{display:grid}}
 
   #result{position:fixed;inset:0;background:rgba(16,18,24,.94);display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:18px;padding:16px}
+    align-items:center;justify-content:center;gap:12px;padding:16px}
   #result[hidden]{display:none}
   #result .title{font-size:22px;letter-spacing:.3em;color:var(--sub)}
   #result dl{display:grid;grid-template-columns:auto auto;gap:6px 28px;font-size:18px}
@@ -92,6 +92,11 @@
     color:var(--bg);background:var(--accent);border:0;border-radius:14px;touch-action:none}
   #retry.locked{opacity:.35}
   #result .hint{font-size:13px;color:var(--sub)}
+  #result .bestline{grid-column:1/-1;text-align:right;font-size:14px;color:var(--sub);line-height:1.5}
+  #result .bestline .rec{display:block;font-size:26px;font-weight:700;letter-spacing:.1em;color:var(--accent);text-align:center;
+    text-shadow:0 0 12px var(--accent);animation:recpop .5s ease-out}
+  @keyframes recpop{0%{opacity:0;transform:scale(.5)}60%{transform:scale(1.25)}100%{opacity:1;transform:scale(1)}}
+  #msg .best{display:block;margin-top:8px;font-size:14px;letter-spacing:.1em}
 </style>
 </head>
 <body>
@@ -119,6 +124,7 @@
   <div class="title">RESULT</div>
   <dl>
     <dt>SCORE</dt><dd class="big" id="r-score">0</dd>
+    <div class="bestline" id="r-best"></div>
     <dt>ACCURACY</dt><dd id="r-acc">100%</dd>
     <dt>INPUTS</dt><dd id="r-inputs">0</dd>
     <dt>MISS</dt><dd id="r-miss">0</dd>
@@ -275,6 +281,12 @@ function retry(s, now, rand) {
   startGame(s, now, rand);
   return true;
 }
+
+// 自己ベストとの比較。best は保存済みのベスト（無ければ 0）
+function judgeBest(score, best) {
+  const isNew = score > best;
+  return { isNew, best: isNew ? score : best, diff: isNew ? 0 : best - score };
+}
 // ===== 効果音（波形合成。ファイルなし） =====
 const Snd = (() => {
   let ac = null;
@@ -329,6 +341,13 @@ const Snd = (() => {
     end()   { // ド→ミ→ソ→ド
       beep(note(0), 0.12, 'triangle', 0.12); beep(note(2), 0.12, 'triangle', 0.12, 0.12);
       beep(note(4), 0.15, 'triangle', 0.12, 0.24); beep(note(7), 0.4, 'triangle', 0.12, 0.38);
+    },
+    // 自己ベスト更新: ド ミ ソ ド↑ ミ↑ ソ↑ ド↑↑（end() の代わりに鳴らす。ハ長調のみ）
+    record() {
+      [[0, 0], [2, 0.1], [4, 0.2], [7, 0.3], [9, 0.45], [11, 0.55]].forEach(([d, w]) => {
+        beep(note(d), 0.12, 'triangle', 0.12, w);
+      });
+      beep(note(14), 0.6, 'triangle', 0.12, 0.65);
     },
   };
 })();
@@ -409,8 +428,29 @@ function renderCombo(s, ev) {
   prevCombo = playing ? s.combo : 0;
 }
 
+// 自己ベストの表示（結果画面の SCORE の下）。r = judgeBest() の結果
+function renderBest(r) {
+  const el = $('r-best');
+  el.replaceChildren();
+  if (!r) return;
+  if (r.isNew) {
+    const n = document.createElement('span');
+    n.className = 'rec';
+    n.textContent = 'NEW RECORD!';
+    el.appendChild(n);
+    return;
+  }
+  el.appendChild(document.createTextNode('BEST ' + r.best.toLocaleString()));
+  if (r.best > 0 && r.diff > 0) {
+    el.appendChild(document.createElement('br'));
+    el.appendChild(document.createTextNode('自己ベストまで あと ' + r.diff.toLocaleString()));
+  }
+}
+
 // ev: press() の戻り値、または 'end' / null
-function render(s, ev) {
+// info: { best: 保存済みの自己ベスト, r: 直近の judgeBest() の結果 }（省略可）
+function render(s, ev, info) {
+  info = info || { best: 0, r: null };
   $('score').textContent = s.score.toLocaleString();
   $('combo').textContent = s.combo;
   renderTime(s);
@@ -440,6 +480,12 @@ function render(s, ev) {
   } else if (s.phase === 'ready') {
     cmd.replaceChildren();
     msg.textContent = '表示された矢印を順に入力 ／ 矢印キーかボタンでスタート';
+    if (info.best > 0) {
+      const b = document.createElement('span');
+      b.className = 'best';
+      b.textContent = 'BEST ' + info.best.toLocaleString();
+      msg.appendChild(b);
+    }
   } else {
     cmd.replaceChildren();
     msg.textContent = '';
@@ -450,6 +496,7 @@ function render(s, ev) {
   if (s.phase === 'result') {
     if (ev === 'end') countUp($('r-score'), s.score, COUNT_UP_MS);
     else $('r-score').textContent = s.score.toLocaleString();
+    renderBest(info.r);
     $('r-acc').textContent = accuracy(s) + '%';
     $('r-inputs').textContent = s.inputs;
     $('r-miss').textContent = s.misses;
@@ -485,8 +532,25 @@ function bindInput(onDir, onRetry) {
   $('retry').addEventListener('pointerdown', e => { e.preventDefault(); onRetry(); });
   window.addEventListener('contextmenu', e => e.preventDefault()); // 長押しメニューを出さない
 }
+// ===== 保存（localStorage。使えない環境でも遊べるよう、すべて try/catch） =====
+const Store = {
+  KEY: 'command.best',
+  // 保存済みの自己ベスト。無い・壊れている・読めないときは 0
+  loadBest() {
+    try {
+      const n = Number(localStorage.getItem(this.KEY));
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    } catch (e) { return 0; }
+  },
+  saveBest(n) {
+    try { localStorage.setItem(this.KEY, String(n)); } catch (e) { /* 保存できなくても続行 */ }
+  },
+};
 // ===== 起動とループ =====
 const S = createState();
+let best = Store.loadBest();   // 自己ベスト（保存できない環境では 0 から）
+let lastJudge = null;          // 直近の結果の judgeBest()
+const info = () => ({ best, r: lastJudge });
 
 // 残り5〜1秒の各秒の切り替わりで tick を鳴らす。
 // 時間延長で秒数が増えたときは基準だけ更新し、鳴らさない（二重に鳴らさない）
@@ -496,6 +560,14 @@ function tickSound() {
   const sec = Math.ceil(S.timeLeft / 1000);
   if (sec < lastSec && sec >= 1 && sec <= 5) Snd.tick();
   lastSec = sec;
+}
+
+// ゲーム終了時の処理。tick() / press() が 'end' を返したときだけ、ゲームごとに1回呼ぶ
+function onEnd() {
+  const r = judgeBest(S.score, best);
+  lastJudge = r;
+  if (r.isNew) { best = r.best; Store.saveBest(best); Snd.record(); }
+  else Snd.end();
 }
 
 function onDir(dir) {
@@ -510,18 +582,18 @@ function onDir(dir) {
   }
   else if (ev === 'boost') Snd.boost();
   else if (ev === 'miss') Snd.miss();
-  else if (ev === 'end') Snd.end();
-  if (ev) render(S, ev);
+  else if (ev === 'end') onEnd();
+  if (ev) render(S, ev, info());
 }
 
 function onRetry() {
   Snd.unlock();
-  if (retry(S, performance.now())) { lastSec = Infinity; render(S, 'start'); }
+  if (retry(S, performance.now())) { lastSec = Infinity; render(S, 'start', info()); }
 }
 
 function loop() {
   const now = performance.now();
-  if (tick(S, now)) { Snd.end(); render(S, 'end'); }
+  if (tick(S, now)) { onEnd(); render(S, 'end', info()); }
   else if (S.phase === 'playing') { renderTime(S); tickSound(); }
   if (S.phase === 'result') $('retry').classList.toggle('locked', !canRetry(S, now));
   requestAnimationFrame(loop);
@@ -529,7 +601,7 @@ function loop() {
 
 bindInput(onDir, onRetry);
 window.addEventListener('resize', () => { if (S.phase === 'playing') fitCommand(); });
-render(S, null);
+render(S, null, info());
 requestAnimationFrame(loop);
 </script>
 </body>

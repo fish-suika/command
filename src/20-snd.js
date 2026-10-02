@@ -53,5 +53,12 @@ const Snd = (() => {
       beep(note(0), 0.12, 'triangle', 0.12); beep(note(2), 0.12, 'triangle', 0.12, 0.12);
       beep(note(4), 0.15, 'triangle', 0.12, 0.24); beep(note(7), 0.4, 'triangle', 0.12, 0.38);
     },
+    // 自己ベスト更新: ド ミ ソ ド↑ ミ↑ ソ↑ ド↑↑（end() の代わりに鳴らす。ハ長調のみ）
+    record() {
+      [[0, 0], [2, 0.1], [4, 0.2], [7, 0.3], [9, 0.45], [11, 0.55]].forEach(([d, w]) => {
+        beep(note(d), 0.12, 'triangle', 0.12, w);
+      });
+      beep(note(14), 0.6, 'triangle', 0.12, 0.65);
+    },
   };
 })();

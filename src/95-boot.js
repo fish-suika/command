@@ -1,5 +1,8 @@
 // ===== 起動とループ =====
 const S = createState();
+let best = Store.loadBest();   // 自己ベスト（保存できない環境では 0 から）
+let lastJudge = null;          // 直近の結果の judgeBest()
+const info = () => ({ best, r: lastJudge });
 
 // 残り5〜1秒の各秒の切り替わりで tick を鳴らす。
 // 時間延長で秒数が増えたときは基準だけ更新し、鳴らさない（二重に鳴らさない）
@@ -9,6 +12,14 @@ function tickSound() {
   const sec = Math.ceil(S.timeLeft / 1000);
   if (sec < lastSec && sec >= 1 && sec <= 5) Snd.tick();
   lastSec = sec;
+}
+
+// ゲーム終了時の処理。tick() / press() が 'end' を返したときだけ、ゲームごとに1回呼ぶ
+function onEnd() {
+  const r = judgeBest(S.score, best);
+  lastJudge = r;
+  if (r.isNew) { best = r.best; Store.saveBest(best); Snd.record(); }
+  else Snd.end();
 }
 
 function onDir(dir) {
@@ -23,18 +34,18 @@ function onDir(dir) {
   }
   else if (ev === 'boost') Snd.boost();
   else if (ev === 'miss') Snd.miss();
-  else if (ev === 'end') Snd.end();
-  if (ev) render(S, ev);
+  else if (ev === 'end') onEnd();
+  if (ev) render(S, ev, info());
 }
 
 function onRetry() {
   Snd.unlock();
-  if (retry(S, performance.now())) { lastSec = Infinity; render(S, 'start'); }
+  if (retry(S, performance.now())) { lastSec = Infinity; render(S, 'start', info()); }
 }
 
 function loop() {
   const now = performance.now();
-  if (tick(S, now)) { Snd.end(); render(S, 'end'); }
+  if (tick(S, now)) { onEnd(); render(S, 'end', info()); }
   else if (S.phase === 'playing') { renderTime(S); tickSound(); }
   if (S.phase === 'result') $('retry').classList.toggle('locked', !canRetry(S, now));
   requestAnimationFrame(loop);
@@ -42,5 +53,5 @@ function loop() {
 
 bindInput(onDir, onRetry);
 window.addEventListener('resize', () => { if (S.phase === 'playing') fitCommand(); });
-render(S, null);
+render(S, null, info());
 requestAnimationFrame(loop);
