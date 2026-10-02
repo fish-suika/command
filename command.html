@@ -10,7 +10,18 @@
   html,body{height:100%;background:var(--bg);color:var(--fg);overflow:hidden;
     font-family:"Segoe UI","Yu Gothic UI",system-ui,sans-serif;
     touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
-  #app{height:100%;max-width:900px;margin:0 auto;padding:16px;display:flex;flex-direction:column}
+  #app{height:100%;max-width:900px;margin:0 auto;padding:16px;display:flex;flex-direction:column;--tier-color:var(--accent)}
+  /* コンボ倍率の段ごとの色（×1.5 / ×2 / ×2.5 / ×3）。演出はすべてこの色を使う */
+  #app[data-tier="1"]{--tier-color:#5ad1ff}
+  #app[data-tier="2"]{--tier-color:#7dffa0}
+  #app[data-tier="3"]{--tier-color:#ffe24a}
+  #app[data-tier="4"]{--tier-color:#ff6bd6}
+  /* 高コンボの背景。コマンドの後ろに薄く敷くだけ（opacity は読みやすさを落とさない範囲） */
+  #glow{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:0;transition:opacity .3s;
+    background:radial-gradient(circle at 50% 50%,var(--tier-color),transparent 70%)}
+  #app[data-tier="2"] #glow{opacity:.06}
+  #app[data-tier="3"] #glow{opacity:.08}
+  #app[data-tier="4"] #glow{opacity:.1}
 
   #hud{display:flex;gap:12px}
   .stat{flex:1;display:flex;flex-direction:column;align-items:center}
@@ -23,11 +34,33 @@
   #time-plus{position:absolute;left:calc(50% + 38px);top:55%;font-size:16px;font-weight:700;color:var(--ok);opacity:0;pointer-events:none;white-space:nowrap}
   #time-plus.go{animation:plus .6s ease-out}
   @keyframes plus{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-18px)}}
+  .stat.combobox{position:relative}
+  #mult{position:absolute;left:calc(50% + 28px);top:58%;font-size:14px;font-weight:700;color:var(--tier-color);white-space:nowrap}
+  #mult[hidden]{display:none}
+  #mult.up{animation:multup .25s ease-out}
+  @keyframes multup{from{transform:scale(1.6)}to{transform:scale(1)}}
+  #score.bump{animation:bump .12s ease-out}
+  @keyframes bump{from{transform:scale(1.15)}to{transform:scale(1)}}
+  #combo.lose{animation:lose .3s ease-out}
+  @keyframes lose{0%{color:var(--ng);text-shadow:0 0 12px var(--ng)}100%{color:inherit;text-shadow:none}}
   #gauge{height:6px;margin-top:8px;border-radius:3px;background:#1d2130;overflow:hidden}
   #gauge-fill{height:100%;width:0;border-radius:3px;background:var(--ok);transition:width .1s}
 
   #stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  #cmd{display:flex;gap:.2em;font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
+  /* 節目表示: 高さ固定なので出ても消えてもコマンドは動かない。浮かぶのは上方向だけ */
+  #combo-pop{height:44px;line-height:44px;font-size:26px;font-weight:700;letter-spacing:.05em;white-space:nowrap;
+    color:var(--tier-color);opacity:0;pointer-events:none}
+  #combo-pop.big{font-size:32px;text-shadow:0 0 12px var(--tier-color),0 0 24px var(--tier-color)}
+  #combo-pop.go{animation:combopop .6s ease-out}
+  @keyframes combopop{0%{opacity:0;transform:translateY(8px) scale(.8)}15%{opacity:1;transform:translateY(0) scale(1.1)}
+    70%{opacity:1}100%{opacity:0;transform:translateY(-28px) scale(1)}}
+  #cmd-wrap{position:relative;display:flex;justify-content:center;max-width:100%}
+  /* クリア時の輪: コマンドの後ろで広がって消える。#cmd.scrollWidth に影響しないよう別 div */
+  #ring{position:absolute;inset:-8px -24px;border:3px solid var(--tier-color);border-radius:999px;
+    opacity:0;pointer-events:none;z-index:0}
+  #ring.go{animation:ring .3s ease-out}
+  @keyframes ring{from{opacity:.8;transform:scale(1)}to{opacity:0;transform:scale(1.4)}}
+  #cmd{position:relative;z-index:1;display:flex;gap:.2em;font-size:var(--cmd-size,72px);font-weight:700;line-height:1.1}
   #cmd span{display:inline-block}
   #cmd span.done{color:var(--dim)}
   #cmd span.next{color:var(--accent);transform:scale(1.15)}
@@ -62,15 +95,17 @@
 </style>
 </head>
 <body>
-<div id="app">
+<div id="app" data-tier="0">
+  <div id="glow"></div>
   <div id="hud">
     <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0</span></div>
     <div class="stat timebox"><span class="k">TIME</span><span class="v" id="time">30.0</span><span id="time-plus">+3s</span></div>
-    <div class="stat"><span class="k">COMBO</span><span class="v" id="combo">0</span></div>
+    <div class="stat combobox"><span class="k">COMBO</span><span class="v" id="combo">0</span><span id="mult" hidden>×1.5</span></div>
   </div>
   <div id="gauge"><div id="gauge-fill"></div></div>
   <div id="stage">
-    <div id="cmd"></div>
+    <div id="combo-pop"></div>
+    <div id="cmd-wrap"><div id="ring"></div><div id="cmd"></div></div>
     <div id="msg"></div>
   </div>
   <div id="pad">
@@ -300,11 +335,62 @@ function restartAnim(el, cls) {
   el.classList.add(cls);
 }
 
+// 倍率の表示（×1.5 / ×2 …）
+function multText(combo) { return '×' + comboMult(combo); }
+
+// 数字を 0 から to まで ms かけて増やす。RESULT_LOCK（0.6秒）より短くすること
+let countAnim = 0;
+function countUp(el, to, ms) {
+  cancelAnimationFrame(countAnim);
+  const t0 = performance.now();
+  const step = now => {
+    const p = Math.min(1, (now - t0) / ms);
+    el.textContent = Math.round(to * p).toLocaleString();
+    if (p < 1) countAnim = requestAnimationFrame(step);
+  };
+  countAnim = requestAnimationFrame(step);
+}
+const COUNT_UP_MS = 500;
+
+// 演出の「前回の状態」。段の上昇・スコア増加・コンボ切れの検出に使う
+let prevTier = 0, prevCombo = 0;
+
+// コンボ関連の演出（HUD・節目・輪・背景）
+function renderCombo(s, ev) {
+  const playing = s.phase === 'playing';
+  const tier = playing ? comboTier(s.combo) : 0;
+  $('app').dataset.tier = tier;   // --tier-color と背景の濃さが切り替わる
+
+  const mult = $('mult');
+  mult.hidden = tier === 0;
+  if (tier > 0) mult.textContent = multText(s.combo);
+  if (tier > prevTier) restartAnim(mult, 'up');
+
+  if (ev === 'miss' && prevCombo >= 2) restartAnim($('combo'), 'lose');
+
+  const pop = $('combo-pop');
+  if (ev === 'clear' || ev === 'boost') {
+    restartAnim($('ring'), 'go');
+    restartAnim($('score'), 'bump');
+    if (isComboMilestone(s.combo)) {
+      pop.textContent = s.combo + ' COMBO!';
+      pop.classList.toggle('big', s.combo >= 30);
+      restartAnim(pop, 'go');
+    }
+  } else if (ev === 'miss' || ev === 'start' || ev === 'end') {
+    pop.classList.remove('go');
+  }
+
+  prevTier = tier;
+  prevCombo = playing ? s.combo : 0;
+}
+
 // ev: press() の戻り値、または 'end' / null
 function render(s, ev) {
   $('score').textContent = s.score.toLocaleString();
   $('combo').textContent = s.combo;
   renderTime(s);
+  renderCombo(s, ev);
   $('gauge-fill').style.width = (s.gauge / CFG.GAUGE_MAX * 100) + '%';
 
   const cmd = $('cmd');
@@ -335,13 +421,15 @@ function render(s, ev) {
     msg.textContent = '';
   }
 
+  if (s.phase !== 'result') cancelAnimationFrame(countAnim);
   $('result').hidden = s.phase !== 'result';
   if (s.phase === 'result') {
-    $('r-score').textContent = s.score.toLocaleString();
+    if (ev === 'end') countUp($('r-score'), s.score, COUNT_UP_MS);
+    else $('r-score').textContent = s.score.toLocaleString();
     $('r-acc').textContent = accuracy(s) + '%';
     $('r-inputs').textContent = s.inputs;
     $('r-miss').textContent = s.misses;
-    $('r-combo').textContent = s.maxCombo;
+    $('r-combo').textContent = s.maxCombo + '  (×' + s.maxMult + ')';
     $('r-bonus').textContent = '+' + (s.boosts * CFG.GAUGE_BONUS / 1000) + 's';
   }
 }
